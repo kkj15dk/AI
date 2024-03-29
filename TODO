@@ -1,0 +1,2 @@
+
+- wget -qO- https://dl.secondarymetabolites.org/mibig/mibig_json_3.1.tar.gz | tar xvz
