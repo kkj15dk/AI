@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
+from torch.nn.utils.rnn import pad_sequence
 import random
 import numpy as np
 from DNAconversion import one_hot_encode
@@ -63,9 +64,9 @@ class SeqDatasetOHE(Dataset):
     Dataset for one-hot-encoded sequences
     
     Args:
-        df (pandas.DataFrame): The input dataframe containing the sequences and labels.
+        df (pandas.DataFrame): The input dataframe containing the sequences and targets.
         seq_col (str): The column name in the dataframe that contains the sequences. Default is 'seq'.
-        target_col (str): The column name in the dataframe that contains the target labels. Default is 'score'.
+        target_col (str): The column name in the dataframe that contains the target targets. Default is 'score'.
     '''
     def __init__(self,
                  df,
@@ -81,8 +82,8 @@ class SeqDatasetOHE(Dataset):
         # one-hot encode sequences
         self.ohe_seqs = [torch.tensor(one_hot_encode(x)) for x in self.seqs]
     
-        # Get the Y labels
-        self.labels = torch.tensor(list(df[target_col].values)).unsqueeze(1)
+        # Get the Y targets
+        self.targets = torch.tensor(list(df[target_col].values)).unsqueeze(1)
         
     def __len__(self): 
         '''
@@ -95,24 +96,47 @@ class SeqDatasetOHE(Dataset):
     
     def __getitem__(self,idx):
         '''
-        Returns the X and Y values for a given index.
+        Returns the input and output for a given index.
         
         Args:
             idx (int): The index of the sample to retrieve.
         
         Returns:
-            tuple: A tuple containing the one-hot encoded sequence (X) and the label (Y).
+            tuple: A tuple containing the one-hot encoded sequence (X) and the target (Y).
         '''
         seq = self.ohe_seqs[idx]
-        label = self.labels[idx]
+        label = self.targets[idx]
         
         return seq, label
+
+def collate_fn(batch):
+    '''
+    Given a batch of data, collate the inputs and outputs into their own tensors.
     
+    Args:
+        batch (list): A list of tuples containing the input and ouput values.
+    
+    Returns:
+        tuple: A tuple containing the input and output tensors.
+    '''
+    # separate the X and Y values
+    inputs = [item[0] for item in batch]
+    targets = [item[1] for item in batch]
+    
+    # stack the inputs into a single tensor
+    inputs = pad_sequence(inputs, batch_first=True)
+    
+    # stack the targets into a single tensor
+    targets = torch.stack(targets)
+    
+    return inputs, targets
+
 def build_dataloaders(train_df,
                       test_df,
                       seq_col='seq',
                       target_col='score',
                       batch_size=1,
+                      collate_fn=collate_fn,
                       shuffle=True
                      ):
     '''
@@ -138,8 +162,8 @@ def build_dataloaders(train_df,
     test_ds = SeqDatasetOHE(test_df,seq_col=seq_col,target_col=target_col)
 
     # Put DataSets into DataLoaders
-    train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=shuffle)
-    test_dl = DataLoader(test_ds, batch_size=batch_size)
+    train_dl = DataLoader(train_ds, batch_size=batch_size, collate_fn=collate_fn, shuffle=shuffle)
+    test_dl = DataLoader(test_ds, batch_size=batch_size, collate_fn=collate_fn, shuffle=False)
 
     return train_dl,test_dl
 
@@ -202,7 +226,7 @@ class MaxPooling(nn.Module):
         x = self.maxpool(x)
         return x
 
-def train_loop(n, DEVICE, train_dl, model, criterion, optimizer, train_running_loss):
+def train_loop(n, DEVICE, train_dl, model, loss_fn, optimizer, train_running_loss):
     """
     Trains the model for one epoch using the provided training data.
 
@@ -211,21 +235,21 @@ def train_loop(n, DEVICE, train_dl, model, criterion, optimizer, train_running_l
         DEVICE (torch.device): The device to use for training (e.g., 'cuda' or 'cpu').
         train_dl (torch.utils.data.Dataloader): The training data loader.
         model (torch.nn.Module): The model to train.
-        criterion: The loss function.
+        loss_fn: The loss function.
         optimizer: The optimizer.
         train_running_loss (float): The running loss for the training data.
 
     Returns:
         float: The average loss for the epoch.
     """
-    for i, (inputs, labels) in enumerate(train_dl):
-        # Move the inputs and labels to the device
+    for i, (inputs, targets) in enumerate(train_dl):
+        # Move the inputs and targets to the device
         inputs = inputs.transpose(1,2).float().to(DEVICE)
-        labels = labels.squeeze(1).float().to(DEVICE)
+        targets = targets.squeeze(1).float().to(DEVICE)
         
         # Forward pass
         outputs = model(inputs)
-        loss = criterion(outputs, labels)
+        loss = loss_fn(outputs, targets)
         
         # Backward pass
         loss.backward()
@@ -246,7 +270,7 @@ def train_loop(n, DEVICE, train_dl, model, criterion, optimizer, train_running_l
     train_avg_loss = train_running_loss / len(train_dl)
     return train_avg_loss
 
-def val_loop(DEVICE, val_dl, model, criterion, val_running_loss, all_preds, all_labels):
+def val_loop(DEVICE, val_dl, model, loss_fn, val_running_loss, all_preds, all_targets, early_stopping_epochs=5):
     """
     Perform the validation loop for the given model.
 
@@ -254,30 +278,42 @@ def val_loop(DEVICE, val_dl, model, criterion, val_running_loss, all_preds, all_
         DEVICE (torch.device): The device to run the computations on.
         val_dl (torch.utils.data.DataLoader): The validation dataloader.
         model (torch.nn.Module): The model to evaluate.
-        criterion: The loss function used for evaluation.
+        loss_fn: The loss function used for evaluation.
         val_running_loss (float): The running loss for validation.
         all_preds (list): List to store all the predictions.
-        all_labels (list): List to store all the labels.
+        all_targets (list): List to store all the targets.
 
     Returns:
         float: The average validation loss.
         list: All the predictions.
-        list: All the labels.
+        list: All the targets.
     """
-    for inputs, labels in val_dl: # iterate over the validation dataloader
+
+    best_val_loss = float('inf')
+    epochs_since_improvement = 0
+
+    for inputs, targets in val_dl: # iterate over the validation dataloader
         inputs = inputs.transpose(1,2).float().to(DEVICE)
-        labels = labels.squeeze(1).float().to(DEVICE)
+        targets = targets.squeeze(1).float().to(DEVICE)
 
         # Forward pass
         outputs = model(inputs)
-        loss = criterion(outputs, labels)
+        loss = loss_fn(outputs, targets)
 
         # Get predictions
         preds = torch.sigmoid(outputs) > 0.5 # threshold the output to get the class prediction
         all_preds.extend(preds.cpu().numpy())
-        all_labels.extend(labels.cpu().numpy())
+        all_targets.extend(targets.cpu().numpy())
 
         # Calculate loss
         val_running_loss += loss.item()
         val_avg_losses = val_running_loss / len(val_dl)
-    return val_avg_losses, all_preds, all_labels
+        if val_running_loss < best_val_loss:
+            best_val_loss = val_running_loss
+            torch.save(model.state_dict(), 'best_model.pth')
+        else:
+            epochs_since_improvement += 1
+            if epochs_since_improvement == early_stopping_epochs:
+                print('Early stopping')
+                break
+    return val_avg_losses, all_preds, all_targets

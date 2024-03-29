@@ -7,8 +7,8 @@ with open('requirements.txt') as f:
 setup(
     name="your_project_name",
     version="0.1",
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
+    packages=find_packages(where="BGCactivityPrediction"),
+    package_dir={"": "BGCactivityPrediction"},
     install_requires=requirements,  # Use the list of requirements read from requirements.txt
 
     # Additional metadata

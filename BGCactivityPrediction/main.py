@@ -12,8 +12,8 @@ from MLvisualisation import *
 from MLbuilding import *
 
 # Set the number of epochs and the learning rate
-num_epochs = 300
-lr = 0.01
+num_epochs = 30
+lr = 0.1
 n = 1  # number of batches to accumulate gradients over
 kernel_size = 1
 maxpool_size = 2
@@ -22,8 +22,8 @@ input_channels = ['A', 'C', 'G','T']
 output_channels = ['C1', 'C2', 'C3', 'C4']
 num_kernels = 16
 batch_size = 100
-a = 4
-seq_len = b = 4
+a = 20
+seq_len = b = 100
 n = 2000
     
 set_seed(15)
@@ -48,13 +48,13 @@ seqs = abmers(a, b, n)
 data = []
 for seq in seqs:
     score = [0 for i in range(4)]
-    if 'A' in seq:
+    if 'ATA' in seq:
         score[0] = 1
-    if 'C' in seq:
+    if 'CGC' in seq:
         score[1] = 1
-    if 'G' in seq:
+    if 'GTG' in seq:
         score[2] = 1
-    if 'T' in seq:
+    if 'TCT' in seq:
         score[3] = 1
     data.append((seq,score))
     df = pd.DataFrame(data, columns=['seq','score'])

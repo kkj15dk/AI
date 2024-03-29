@@ -3,3 +3,4 @@ mibig*
 __pycache__/
 *.png
 *.ipynb
+*.pth
