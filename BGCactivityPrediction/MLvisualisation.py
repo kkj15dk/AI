@@ -134,8 +134,8 @@ def get_conv_output_for_seq(seq, conv_layer, DEVICE):
         torch.Tensor: The output tensor containing the conv filter activations.
     '''
     # format seq for input to conv layer (OHE, reshape)
-    seq = torch.tensor(one_hot_encode(seq)).unsqueeze(0).permute(0,2,1).to(DEVICE)
-
+    seq = torch.tensor(one_hot_encode(seq)).unsqueeze(0).to(DEVICE)
+    # print("Shape of seq:", seq.shape)
     # run seq through conv layer
     with torch.no_grad(): # don't want as part of gradient graph
         # apply learned filters to input seq
@@ -178,7 +178,7 @@ def get_filter_activations(seqs, conv_layer, DEVICE, act_thresh=0, input_channel
         res = get_conv_output_for_seq(seq, conv_layer, DEVICE)
 
         # for each filter and it's activation vector
-        for filt_id,act_vec in enumerate(res):
+        for filt_id, act_vec in enumerate(res):
             # collect the indices where the activation level 
             # was above the threshold
             act_idxs = torch.where(act_vec>act_thresh)[0]
@@ -190,7 +190,7 @@ def get_filter_activations(seqs, conv_layer, DEVICE, act_thresh=0, input_channel
                 subseq = seq[pos:pos+filt_width]
                 #print("subseq",pos, subseq)
                 # transpose OHE to match PWM orientation
-                subseq_tensor = torch.tensor(one_hot_encode(subseq)).T
+                subseq_tensor = torch.tensor(one_hot_encode(subseq))
 
                 # add this subseq to the pwm count for this filter
                 filter_pwms[filt_id] += subseq_tensor            

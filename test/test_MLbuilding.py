@@ -1,6 +1,6 @@
 import unittest
 import torch
-from BGCactivityPrediction.main import DNA_CNN, train_loop
+from BGCactivityPrediction.CNN import DNA_CNN, train_loop
 
 class TestDNACNN(unittest.TestCase):
     def setUp(self):

@@ -64,7 +64,7 @@ class SeqDatasetOHE(Dataset):
     Dataset for one-hot-encoded sequences
     
     Args:
-        df (pandas.DataFrame): The input dataframe containing the sequences and targets.
+        df (pandas.DataFrame): The input dataframe containing the sequences and optionally the targets. Assumes targets are provided.
         seq_col (str): The column name in the dataframe that contains the sequences. Default is 'seq'.
         target_col (str): The column name in the dataframe that contains the target targets. Default is 'score'.
     '''
@@ -80,10 +80,12 @@ class SeqDatasetOHE(Dataset):
         # self.seq_len = len(self.seqs[0])
         
         # one-hot encode sequences
-        self.ohe_seqs = [torch.tensor(one_hot_encode(x)) for x in self.seqs]
+        self.ohe_seqs = [torch.tensor(one_hot_encode(seq)) for seq in self.seqs]
     
-        # Get the Y targets
-        self.targets = torch.tensor(list(df[target_col].values)).unsqueeze(1)
+        # Get the targets
+        self.targets = None
+        if target_col:
+            self.targets = torch.tensor(list(df[target_col].values)).unsqueeze(1)
         
     def __len__(self): 
         '''
@@ -105,9 +107,11 @@ class SeqDatasetOHE(Dataset):
             tuple: A tuple containing the one-hot encoded sequence (X) and the target (Y).
         '''
         seq = self.ohe_seqs[idx]
-        label = self.targets[idx]
-        
-        return seq, label
+        if self.targets is not None:
+            label = self.targets[idx]
+            return seq, label
+        else:
+            return seq
 
 def collate_fn(batch):
     '''
@@ -244,7 +248,7 @@ def train_loop(n, DEVICE, train_dl, model, loss_fn, optimizer, train_running_los
     """
     for i, (inputs, targets) in enumerate(train_dl):
         # Move the inputs and targets to the device
-        inputs = inputs.transpose(1,2).float().to(DEVICE)
+        inputs = inputs.float().to(DEVICE)
         targets = targets.squeeze(1).float().to(DEVICE)
         
         # Forward pass
@@ -293,7 +297,7 @@ def val_loop(DEVICE, val_dl, model, loss_fn, val_running_loss, all_preds, all_ta
     epochs_since_improvement = 0
 
     for inputs, targets in val_dl: # iterate over the validation dataloader
-        inputs = inputs.transpose(1,2).float().to(DEVICE)
+        inputs = inputs.float().to(DEVICE)
         targets = targets.squeeze(1).float().to(DEVICE)
 
         # Forward pass

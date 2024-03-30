@@ -22,8 +22,8 @@ input_channels = ['A', 'C', 'G','T']
 output_channels = ['C1', 'C2', 'C3', 'C4']
 num_kernels = 16
 batch_size = 100
-a = 20
-seq_len = b = 100
+a = 8
+seq_len = b = 8
 n = 2000
     
 set_seed(15)
@@ -48,13 +48,13 @@ seqs = abmers(a, b, n)
 data = []
 for seq in seqs:
     score = [0 for i in range(4)]
-    if 'ATA' in seq:
+    if 'A' in seq:
         score[0] = 1
-    if 'CGC' in seq:
+    if 'C' in seq:
         score[1] = 1
-    if 'GTG' in seq:
+    if 'G' in seq:
         score[2] = 1
-    if 'TCT' in seq:
+    if 'T' in seq:
         score[3] = 1
     data.append((seq,score))
     df = pd.DataFrame(data, columns=['seq','score'])

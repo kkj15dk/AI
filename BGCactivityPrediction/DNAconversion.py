@@ -1,4 +1,6 @@
 import numpy as np
+from Bio import SeqIO
+import os
 
 def one_hot_encode(seq):
     """
@@ -18,6 +20,7 @@ def one_hot_encode(seq):
              'N':[0.0,0.0,0.0,0.0]}
     
     # Create array from nucleotide sequence
-    vec=np.array([nuc_d[x] for x in seq])
+    vec = np.array([nuc_d[x] for x in seq])
+    vec = vec.T # Transpose the array to make format match the expected input for a CNN
 
     return vec
