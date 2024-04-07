@@ -6,3 +6,5 @@ __pycache__/
 *.pth
 *.fa
 clustalw
+clustalo
+filtered_*
