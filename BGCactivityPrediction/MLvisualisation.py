@@ -119,7 +119,7 @@ def view_filters(model_weights, num_cols=8, input_channels=['A','C','G','T']):
     plt.tight_layout()
     plt.savefig('conv_filters.png')
 
-def get_conv_output_for_seq(seq, conv_layer, DEVICE):
+def get_conv_output_for_seq(seq, conv_layer, DEVICE, aa=False):
     '''
     Given an input sequence and a convolutional layer, 
     get the output tensor containing the conv filter 
@@ -134,7 +134,7 @@ def get_conv_output_for_seq(seq, conv_layer, DEVICE):
         torch.Tensor: The output tensor containing the conv filter activations.
     '''
     # format seq for input to conv layer (OHE, reshape)
-    seq = torch.tensor(one_hot_encode(seq)).unsqueeze(0).to(DEVICE)
+    seq = torch.tensor(one_hot_encode(seq, aa=aa)).unsqueeze(0).to(DEVICE)
     # print("Shape of seq:", seq.shape)
     # run seq through conv layer
     with torch.no_grad(): # don't want as part of gradient graph
@@ -143,7 +143,7 @@ def get_conv_output_for_seq(seq, conv_layer, DEVICE):
         return res[0]
     
 
-def get_filter_activations(seqs, conv_layer, DEVICE, act_thresh=0, input_channels=['A','C','G','T']):
+def get_filter_activations(seqs, conv_layer, DEVICE, act_thresh=0, input_channels=['A','C','G','T'], aa=False):
     '''
     Given a set of input sequences and a trained convolutional layer, 
     determine the subsequences for which each filter in the conv layer 
@@ -175,7 +175,7 @@ def get_filter_activations(seqs, conv_layer, DEVICE, act_thresh=0, input_channel
     # loop through a set of sequences and collect subseqs where each filter activated
     for seq in seqs:
         # get a tensor of each conv filter activation along the input seq
-        res = get_conv_output_for_seq(seq, conv_layer, DEVICE)
+        res = get_conv_output_for_seq(seq, conv_layer, DEVICE, aa=aa)
 
         # for each filter and it's activation vector
         for filt_id, act_vec in enumerate(res):
@@ -188,9 +188,11 @@ def get_filter_activations(seqs, conv_layer, DEVICE, act_thresh=0, input_channel
             # subsequences that caused filter to activate
             for pos in activated_positions:
                 subseq = seq[pos:pos+filt_width]
-                #print("subseq",pos, subseq)
+                subseq = subseq.ljust(filt_width, 'X')
+                # print("subseq",pos, subseq)
                 # transpose OHE to match PWM orientation
-                subseq_tensor = torch.tensor(one_hot_encode(subseq))
+                subseq_tensor = torch.tensor(one_hot_encode(subseq, aa=aa))
+                # print(subseq_tensor.shape)
 
                 # add this subseq to the pwm count for this filter
                 filter_pwms[filt_id] += subseq_tensor            
@@ -213,7 +215,7 @@ def view_filters_and_logos(model_weights, filter_activations, num_cols=8, input_
     '''
 
     model_weights = model_weights[0].squeeze(1)
-    print(model_weights.shape)
+    # print(model_weights.shape)
 
     # make sure the model weights agree with the number of filters
     assert(model_weights.shape[0] == len(filter_activations))
