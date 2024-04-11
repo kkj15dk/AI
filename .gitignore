@@ -5,6 +5,9 @@ __pycache__/
 *.ipynb
 *.pth
 *.fa
+*.fasta
+*.aln
+*.out
 clustalw
 clustalo
 filtered_*

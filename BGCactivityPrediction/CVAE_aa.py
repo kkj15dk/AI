@@ -8,7 +8,7 @@ import warnings
 warnings.filterwarnings('ignore', category=FutureWarning) # To remove a warning from logomaker in MLvisualisation.py
 
 batch_size = 5
-input_channels = 21
+input_channels = 22
 hidden_channels = 32
 latent_dim = 100
 kernel_size = 3
@@ -24,7 +24,7 @@ set_seed(15)
 
 # Set the maximum length of the sequences (divisible by 4 for easy twice halving through the CVAE network)
 # max_len = 3600
-max_len = 520
+max_len = 2916
 
 # set the device
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -127,46 +127,37 @@ def CVAEcollate_fn(batch, length = max_len, padding_value=0):
     inputs = torch.stack(inputs)
     return inputs
 
-# aa_file = "Ascomycete_T1-PKSs.fa"
-# train_record_aa = [record for record in SeqIO.parse(aa_file, "fasta")]
-# train_record_aa = [record for record in train_record_aa if len(record.seq) <= max_len] # filter out sequences longer than max_len
+aa_file = "test_clustalo_alignment.aln"
+train_record_aa = [record for record in SeqIO.parse(aa_file, "fasta")]
+train_seq_aa = [record.seq for record in train_record_aa]
+# train_record_aa = [record for record in train_record_aa if len(record) >= max_len] # filter out sequences longer than max_len
 
-aa_file = random_aa_seq(1000)
-train_record_aa = aa_file
+# aa_file = random_aa_seq(1000)
+# train_record_aa = aa_file
 
 
 print("Number of records in test_record_aa:", len(train_record_aa))
-print("Longest sequence in test_record_aa:", max(len(record) for record in train_record_aa))
+print("Longest sequence in test_record_aa:", max(len(record) for record in train_seq_aa))
+print("Shortes sequence in test_record_aa:", min(len(record) for record in train_seq_aa))
 # print("Longest sequence in test_record_aa:", max(len(record.seq) for record in train_record_aa))
 
 
-def plot_train_test_hist(train_record_aa,bins=20):
-    ''' Check distribution of train/test scores, sanity check that its not skewed'''
-    list = [len(record) for record in train_record_aa]
-    # list = [len(record.seq) for record in train_record_aa]
+def plot_train_test_hist(train_seq_aa,bins=20):
+    ''' Check distribution of sequence lengths, sanity check that its not skewed'''
+    list = [len(record) for record in train_seq_aa]
     plt.hist(list, bins=bins, label='train', alpha=1)
     plt.legend()
     plt.xlabel("seq length",fontsize=14)
     plt.ylabel("count",fontsize=14)
     plt.savefig("train_hist.png")
 
-plot_train_test_hist(train_record_aa)
-
-# weird = []
-
-# for record in test_record_aa:
-#     allowed = set("ACDEFGHIKLMNPQRSTVWY*XBJ")
-#     if not set(record.seq).issubset(allowed):
-#         weird.append(record)
-#         print(set(record.seq) - allowed)
-
-# print(weird[0].seq)
+plot_train_test_hist(train_seq_aa)
 
 # Shuffle the list
-np.random.shuffle(train_record_aa)
+np.random.shuffle(train_seq_aa)
 
 # Split the list into training, validation, and test sets
-train_files, test_files = train_test_split(train_record_aa, test_size=0.2, random_state=random_seed)
+train_files, test_files = train_test_split(train_seq_aa, test_size=0.2, random_state=random_seed)
 train_files, val_files = train_test_split(train_files, test_size=0.25, random_state=random_seed)  # 0.25 x 0.8 = 0.2
 
 # Create a SparseDataset

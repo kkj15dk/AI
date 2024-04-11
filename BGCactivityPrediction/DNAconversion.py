@@ -102,12 +102,38 @@ def hot_one_encode(onehotencoded, aa=False):
     
     return seq
 
-def filter_fasta(input_file, output_file, min_length):
+def filter_fasta(input_file, output_file, min_length=None, max_length=None):
     with open(input_file, "r") as input_handle, open(output_file, "w") as output_handle:
         sequences = SeqIO.parse(input_handle, "fasta")
-        short_sequences = (record for record in sequences if len(record.seq) < min_length)
+        if min_length is not None:
+            sequences = (record for record in sequences if len(record.seq) > min_length)
+        if max_length is not None:
+            sequences = (record for record in sequences if len(record.seq) < max_length)
 
-        SeqIO.write(short_sequences, output_handle, "fasta")
+        SeqIO.write(sequences, output_handle, "fasta")
 
 # Usage
-filter_fasta("Ascomycete_T1-PKSs.fa", "filtered_Ascomycete_T1-PKSs.fa", 100)
+if __name__ == "__main__":
+    test_file = "500-50000_PKSs.fa"
+    if not os.path.exists(test_file):
+        filter_fasta("protein-matching-IPR020841.fasta", test_file, 500, 50000)
+
+    # Read the sequences from the test_file
+    sequences = SeqIO.parse(test_file, "fasta")
+    sorted_sequences = sorted(sequences, key=lambda x: len(x.seq))
+    # Sort the sequences by length in ascending order
+    shortest_sequences = sorted_sequences[:5]
+
+    # Sort the sequences by length in descending order
+    longest_sequences = sorted_sequences[-5:-1]
+
+    # Print the length and accession number of the shortest sequences
+    print("Shortest sequences:")
+    for seq in shortest_sequences:
+        print(f"Length: {len(seq.seq)}, Accession: {seq.id}")
+
+    # Print the length and accession number of the longest sequences
+    print("Longest sequences:")
+    for seq in longest_sequences:
+        print(f"Length: {len(seq.seq)}, Accession: {seq.id}")
+
