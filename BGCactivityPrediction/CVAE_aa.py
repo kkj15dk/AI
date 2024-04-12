@@ -24,7 +24,7 @@ set_seed(15)
 
 # Set the maximum length of the sequences (divisible by 4 for easy twice halving through the CVAE network)
 # max_len = 3600
-max_len = 2916
+max_len = 4000
 
 # set the device
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -127,7 +127,9 @@ def CVAEcollate_fn(batch, length = max_len, padding_value=0):
     inputs = torch.stack(inputs)
     return inputs
 
-aa_file = "test_clustalo_alignment.aln"
+# Load the data
+aa_file = "0-4000_new_PKSs.fa"
+# aa_file = "test_clustalo_alignment.aln"
 train_record_aa = [record for record in SeqIO.parse(aa_file, "fasta")]
 train_seq_aa = [record.seq for record in train_record_aa]
 # train_record_aa = [record for record in train_record_aa if len(record) >= max_len] # filter out sequences longer than max_len
@@ -298,9 +300,9 @@ def CVAE_val_loop(DEVICE, val_dl, model, loss_fn, val_running_loss, all_preds, a
         loss = loss_fn(outputs, inputs, mu, logvar)
 
         # Get predictions
-        preds = torch.sigmoid(outputs) > 0.5 # threshold the output to get the class prediction
-        all_preds.extend(preds.cpu().numpy())
-        all_targets.extend(inputs.cpu().numpy())
+        # preds = torch.sigmoid(outputs) > 0.5 # threshold the output to get the class prediction
+        # all_preds.extend(preds.cpu().numpy())
+        # all_targets.extend(inputs.cpu().numpy())
 
         # Calculate loss
         val_running_loss += loss.item()
@@ -314,7 +316,7 @@ def CVAE_val_loop(DEVICE, val_dl, model, loss_fn, val_running_loss, all_preds, a
         if epochs_since_improvement == early_stopping_epochs:
             print('Early stopping')
             return val_avg_loss, all_preds, all_targets
-    return val_avg_loss, all_preds, all_targets
+    return val_avg_loss , all_preds, all_targets
 
 # Instantiate the model
 model = ConvolutionalVAE(input_channels,
@@ -332,8 +334,8 @@ optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 optimizer.zero_grad()  # initialize gradients
 
 # Initialize variables
-all_preds = []
-all_labels = []
+all_preds = [0]
+all_labels = [1]
 train_losses = []
 val_losses = []
 

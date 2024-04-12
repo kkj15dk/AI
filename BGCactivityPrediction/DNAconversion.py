@@ -114,26 +114,34 @@ def filter_fasta(input_file, output_file, min_length=None, max_length=None):
 
 # Usage
 if __name__ == "__main__":
-    test_file = "500-50000_PKSs.fa"
-    if not os.path.exists(test_file):
-        filter_fasta("protein-matching-IPR020841.fasta", test_file, 500, 50000)
+    input_file = "new2_PKSs.fa"
+    output_file = "test_PKSs.fa"
 
-    # Read the sequences from the test_file
-    sequences = SeqIO.parse(test_file, "fasta")
+    if not os.path.exists(output_file):
+        filter_fasta(input_file, output_file, 0, 400000)
+
+    # Read the sequences from the input file
+    sequences = SeqIO.parse(input_file, "fasta")
     sorted_sequences = sorted(sequences, key=lambda x: len(x.seq))
-    # Sort the sequences by length in ascending order
+    # Get the 5 shortest and longest sequences
     shortest_sequences = sorted_sequences[:5]
-
-    # Sort the sequences by length in descending order
     longest_sequences = sorted_sequences[-5:-1]
+
+    print("there are", len(sorted_sequences), "sequences in the file")
+
+    if len(sorted_sequences) != len(set(str(record.seq) for record in sorted_sequences)):
+        i = len(sorted_sequences) - len(set(str(record.seq) for record in sorted_sequences))
+        print("There are " + str(i) + " duplicate sequences in the file")
+    else:
+        print("There are no duplicate sequences in the file")
 
     # Print the length and accession number of the shortest sequences
     print("Shortest sequences:")
     for seq in shortest_sequences:
-        print(f"Length: {len(seq.seq)}, Accession: {seq.id}")
+        print(f"Length: {len(seq.seq)}, Accession: {seq.description}")
 
     # Print the length and accession number of the longest sequences
     print("Longest sequences:")
     for seq in longest_sequences:
-        print(f"Length: {len(seq.seq)}, Accession: {seq.id}")
+        print(f"Length: {len(seq.seq)}, Accession: {seq.description}")
 
