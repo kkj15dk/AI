@@ -6,19 +6,19 @@ from urllib import request
 from urllib.error import HTTPError
 from time import sleep
 
-# Script to download all PKSs with a specific InterPro domain architecture (IDA) (with KS, AT and ACP. Without Adenylation domain) from InterPro, in taxonomic group 4890 (Ascomycetes)
+# Script to download all PKSs with a specific InterPro domain architecture (IDA) (with KS, AT and ACP. Without Adenylation domain, ABC transporter, choline acyltransferase, aminotransferase, PKS docking domain, NMO, or condensation domains) from InterPro, in taxonomic group 4751 (Fungi) # 4890 (Ascomycetes)
 
-IDA_API_URL = "https://www.ebi.ac.uk/interpro/api/entry/?ida_search=IPR014031%2CIPR014030%2CIPR014043%2CIPR009081&ida_ignore=IPR000873%2CIPR003439"
+IDA_API_URL = "https://www.ebi.ac.uk/interpro/api/entry/?ida_search=IPR014031%2CIPR014030%2CIPR014043%2CIPR009081&ida_ignore=IPR000873%2CPF00005%2CIPR039551%2CIPR004839%2CIPR015083%2CIPR004136%2CIPR001242"
 
-BASE_URL = "https://www.ebi.ac.uk/interpro/wwwapi/protein/UniProt/taxonomy/uniprot/4890/?ida="
+BASE_URL = "https://www.ebi.ac.uk/interpro/wwwapi/protein/UniProt/taxonomy/uniprot/4751/?ida=" # 4890/?ida= (for ascomycetes)
 
 URL_EXTENSION = "&page_size=200&extra_fields=sequence%2Cgo_terms"
 
 HEADER_SEPARATOR = "|"
 LINE_LENGTH = 80
 
-IDA_FILE = "new3_IDA_IDs.fa"
-OUTPUT_FILE = "new3_PKSs.fa"
+IDA_FILE = "new4_IDA_IDs.fa"
+OUTPUT_FILE = "new4_PKSs.fa"
 
 def get_ida_ids():
   output_handle = open(IDA_FILE, "w")
@@ -64,10 +64,14 @@ def get_ida_ids():
 
     for i, item in enumerate(payload["results"]):
       
-      # Don't include entries with multiple KS domains (IPR014031, Ketoacyl_synth_C)
+      # Don't include entries with multiple KS or AR domains (IPR014031, Ketoacyl_synth_C) (IPR014043, At doamin)
       KSdomains = [domain for domain in item["representative"]["domains"] if domain["accession"] == "IPR014031"]
       if len(KSdomains) > 1:
         print(str(len(KSdomains)) + " KS domains found in IDA: " + item["ida_id"] + " skipping")
+        continue
+      ATdomains = [domain for domain in item["representative"]["domains"] if domain["accession"] == "IPR014043"]
+      if len(ATdomains) > 1:
+        print(str(len(ATdomains)) + " AT domains found in IDA: " + item["ida_id"] + " skipping")
         continue
 
       if ("ida_id" in item):

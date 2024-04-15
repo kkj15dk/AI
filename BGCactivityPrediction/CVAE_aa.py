@@ -111,7 +111,26 @@ def loss_fn(outputs, inputs, mu, logvar):
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
     return BCE + KLD
 
-def CVAEcollate_fn(batch, length = max_len, padding_value=0):
+# Load the data
+aa_file = "new4_PKSs.fa"
+# aa_file = "test_clustalo_alignment.aln"
+train_record_aa = [record for record in SeqIO.parse(aa_file, "fasta")]
+train_seq_aa = [str(record.seq) for record in train_record_aa]
+# train_record_aa = [record for record in train_record_aa if len(record) >= max_len] # filter out sequences longer than max_len
+
+# aa_file = random_aa_seq(1000)
+# train_record_aa = aa_file
+
+
+print("Number of records in test_record_aa:", len(train_record_aa))
+
+print("Number of non redundant sequences in test_record_aa:", len(set(train_seq_aa)))
+print("Using this subset of sequences for training")
+train_seq_aa = list(set(train_seq_aa))
+
+max_len = max(len(seq) for seq in train_seq_aa)
+
+def CVAEcollate_fn(batch, length=max_len, padding_value=0): # Not easily parseable in the dataloader, so I'll set the max_len before making the collate_fn
     '''
     Given a batch of data, collate the inputs into their own tensors.
     
@@ -122,31 +141,21 @@ def CVAEcollate_fn(batch, length = max_len, padding_value=0):
         list: A list containing the input and output tensors.
     '''
     # stack the inputs into a single tensor
+    # print(len(batch))
     batch = batch[0] # Someone please fix this!!! Why is batch a list with one element?
+    # print(len(batch))
     inputs = [pad_to_length(item, length, padding_value) for item in batch]
     inputs = torch.stack(inputs)
     return inputs
 
-# Load the data
-aa_file = "0-4000_new_PKSs.fa"
-# aa_file = "test_clustalo_alignment.aln"
-train_record_aa = [record for record in SeqIO.parse(aa_file, "fasta")]
-train_seq_aa = [record.seq for record in train_record_aa]
-# train_record_aa = [record for record in train_record_aa if len(record) >= max_len] # filter out sequences longer than max_len
-
-# aa_file = random_aa_seq(1000)
-# train_record_aa = aa_file
-
-
-print("Number of records in test_record_aa:", len(train_record_aa))
-print("Longest sequence in test_record_aa:", max(len(record) for record in train_seq_aa))
+print("Longest sequence in test_record_aa:", max_len, "setting max_len to this value")
 print("Shortes sequence in test_record_aa:", min(len(record) for record in train_seq_aa))
 # print("Longest sequence in test_record_aa:", max(len(record.seq) for record in train_record_aa))
 
 
 def plot_train_test_hist(train_seq_aa,bins=20):
     ''' Check distribution of sequence lengths, sanity check that its not skewed'''
-    list = [len(record) for record in train_seq_aa]
+    list = [len(seq) for seq in train_seq_aa]
     plt.hist(list, bins=bins, label='train', alpha=1)
     plt.legend()
     plt.xlabel("seq length",fontsize=14)
@@ -178,58 +187,75 @@ print("Train len:", train_dataset.len)
 print("Val len:", val_dataset.len)
 print("Test len:", test_dataset.len)
 
-class ConvolutionalVAE(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding):
-        super(ConvolutionalVAE, self).__init__()
-
-        # Encoder
+class Encoder(nn.Module):
+    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, output_len):
+        super(Encoder, self).__init__()
+        self.output_len = output_len
         self.encoder = nn.Sequential(
             nn.Conv1d(input_channels, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2),
+            # nn.MaxPool1d(kernel_size=2, stride=2),
             nn.Conv1d(hidden_channels, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2, stride=2)
+            # nn.MaxPool1d(kernel_size=2, stride=2),
+            nn.Flatten()
         )
 
-        # Latent vectors mu and logvar
-        self.fc1 = nn.Linear(hidden_channels*2 * max_len//4, latent_dim)
-        self.fc2 = nn.Linear(hidden_channels*2 * max_len//4, latent_dim)
-        self.fc3 = nn.Linear(latent_dim, hidden_channels*2 * max_len//4)
+        self.fc_mu = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
+        self.fc_logvar = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
 
-        # Decoder
+    def forward(self, x):
+        x = self.encoder(x)
+        mu = self.fc_mu(x)
+        logvar = self.fc_logvar(x)
+        return mu, logvar
+
+class Decoder(nn.Module):
+    def __init__(self, hidden_channels, input_channels, kernel_size, stride, padding, output_len):
+        super(Decoder, self).__init__()
+        self.hidden_channels = hidden_channels
+        self.output_len = output_len
+        self.fc_z = nn.Linear(latent_dim, hidden_channels * 2 * self.output_len)
         self.decoder = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode='nearest'),
+            # nn.Upsample(scale_factor=2, mode='nearest'),
             nn.ReLU(),
-            nn.ConvTranspose1d(hidden_channels*2, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding, output_padding=0),
-            nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.ConvTranspose1d(hidden_channels*2, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            # nn.Upsample(scale_factor=2, mode='nearest'),
             nn.ReLU(),
-            nn.ConvTranspose1d(hidden_channels, input_channels, kernel_size=kernel_size, stride=stride, padding=padding, output_padding=0),
+            nn.ConvTranspose1d(hidden_channels, input_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            nn.Softmax(dim = 1)
         )
+
+    def forward(self, z):
+        z = self.fc_z(z)
+        z = z.view(-1, self.hidden_channels * 2, self.output_len)
+        x_hat = self.decoder(z)
+        return x_hat
+
+class ConvolutionalVAE(nn.Module):
+    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len):
+        super(ConvolutionalVAE, self).__init__()
+
+        # Define the output lengths between different layers of the model. hopefully this will make the model easier to manipulate later on
+        self.max_len = max_len
+        self.output_len = int(((self.max_len - kernel_size + 2*padding) / stride + 1)) # Can give weird values if stride doesn't divide the length
+        
+        print("Output length: ", self.output_len)
+        # Encoder
+        self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, self.output_len)
+        # Decoder
+        self.decoder = Decoder(hidden_channels, input_channels, kernel_size, stride, padding, self.output_len)
 
     def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5*logvar)
+        std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps*std
     
     def forward(self, x):
-        x = self.encoder(x)
-        # print(x.shape)
-        x = x.view(-1, hidden_channels*2 * max_len//4)
-        # print(x.shape)
-        mu = self.fc1(x)
-        # print(mu.shape)
-        logvar = self.fc2(x)
-        # print(logvar.shape)
+        mu, logvar = self.encoder(x)
         z = self.reparameterize(mu, logvar)
-        # print(z.shape)
-        z = self.fc3(z)
-        # print(z.shape)
-        z = z.view(-1, hidden_channels*2, max_len//4)
-        # print(z.shape)
-        x = self.decoder(z)
-        # print(x.shape)
-        return x, mu, logvar
+        x_hat = self.decoder(z)
+        return x_hat, mu, logvar
 
 def CVAE_train_loop(DEVICE, train_dl, model, loss_fn, optimizer, train_running_loss):
     """
@@ -253,6 +279,8 @@ def CVAE_train_loop(DEVICE, train_dl, model, loss_fn, optimizer, train_running_l
         # Move the inputs and targets to the device
         inputs = inputs.float().to(DEVICE)
         
+        optimizer.zero_grad()
+
         # Forward pass
         outputs, mu, logvar = model(inputs)
         
@@ -260,7 +288,6 @@ def CVAE_train_loop(DEVICE, train_dl, model, loss_fn, optimizer, train_running_l
         loss = loss_fn(outputs, inputs, mu, logvar)
 
         # Backward pass and optimize
-        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
@@ -299,7 +326,7 @@ def CVAE_val_loop(DEVICE, val_dl, model, loss_fn, val_running_loss, all_preds, a
         outputs, mu, logvar = model(inputs)
         loss = loss_fn(outputs, inputs, mu, logvar)
 
-        # Get predictions
+        # # Get predictions
         # preds = torch.sigmoid(outputs) > 0.5 # threshold the output to get the class prediction
         # all_preds.extend(preds.cpu().numpy())
         # all_targets.extend(inputs.cpu().numpy())
@@ -316,7 +343,7 @@ def CVAE_val_loop(DEVICE, val_dl, model, loss_fn, val_running_loss, all_preds, a
         if epochs_since_improvement == early_stopping_epochs:
             print('Early stopping')
             return val_avg_loss, all_preds, all_targets
-    return val_avg_loss , all_preds, all_targets
+    return val_avg_loss, all_preds, all_targets
 
 # Instantiate the model
 model = ConvolutionalVAE(input_channels,
@@ -324,7 +351,8 @@ model = ConvolutionalVAE(input_channels,
                          latent_dim,
                          kernel_size,
                          stride,
-                         padding
+                         padding,
+                         max_len
                          ).to(DEVICE)
 
 # Define the optimizer

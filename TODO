@@ -1,2 +1,28 @@
 
 - wget -qO- https://dl.secondarymetabolites.org/mibig/mibig_json_3.1.tar.gz | tar xvz
+
+- Masking padded data
+
+- check these entries
+Unwanted GO term found! in entry: A0A2I2FY38
+['GO:0022857', 'GO:0055085']
+Unwanted GO term found! in entry: A0A397FXE3
+['GO:0022857', 'GO:0055085']
+Unwanted GO term found! in entry: A0AA40KBW0
+['GO:0022857', 'GO:0055085']
+Unwanted GO term found! in entry: A0A0G4NLM8
+['GO:0022857', 'GO:0055085']
+Unwanted GO term found! in entry: A0A8H3ZMW3
+['GO:0022857', 'GO:0055085']
+Unwanted GO term found! in entry: Q2H9K3
+['GO:0022857', 'GO:0055085']
+Unwanted GO term found! in entry: A0A8H6QCH4
+['GO:0022857', 'GO:0055085']
+Unwanted GO term found! in entry: A0A8H4RMX1
+['GO:0022857', 'GO:0055085']
+Unwanted GO term found! in entry: A0A9P6LI09
+['GO:0022857', 'GO:0055085']
+Unwanted GO term found! in entry: A0A1Y2TDZ1
+['GO:0022857', 'GO:0055085']
+Unwanted GO term found! in entry: A0A1Y2VS14
+['GO:0022857', 'GO:0055085']

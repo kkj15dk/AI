@@ -114,7 +114,7 @@ def filter_fasta(input_file, output_file, min_length=None, max_length=None):
 
 # Usage
 if __name__ == "__main__":
-    input_file = "new2_PKSs.fa"
+    input_file = "new4_PKSs.fa"
     output_file = "test_PKSs.fa"
 
     if not os.path.exists(output_file):
