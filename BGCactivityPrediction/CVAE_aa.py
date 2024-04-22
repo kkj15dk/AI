@@ -16,8 +16,9 @@ import argparse
 parser = argparse.ArgumentParser(description='Train the cVAE')
 
 # Declare arguments
-parser.add_argument('--job_id', type=str, required=True, default='test')
-parser.add_argument('--models_path', type=str, required=True, default='Models')
+parser.add_argument('--test', type=bool, required=False, default=False)
+parser.add_argument('--job_id', type=str, required=False, default='test')
+parser.add_argument('--models_path', type=str, required=False, default='Models')
 parser.add_argument('--plots_path', type=str, required=False, default='Plots')
 parser.add_argument('--existing_parameters', required=False, default=None)
 parser.add_argument('--batch_size', type=int, default=10)
@@ -48,7 +49,7 @@ kernel_size = args.kernel_size
 stride = args.stride
 padding = args.padding
 
-lr = 0.0001 # Learning rate of 0.01 seems too high, it ruins the model
+lr = 0.00001 # Learning rate of 0.01 seems too high, it ruins the model
 scheduler_step = 10
 gamma = 0.1 # Learning rate decay
 early_stopping_patience = 10
@@ -162,11 +163,12 @@ print("Using this subset of sequences for training")
 # Get the unique sequences
 seqs = list(set(train_seq_aa))
 
-# # comment this out if you want to use random sequences
-# seqs = random_aa_seq(n_seqs)
-# print(seqs[0])
-# aa_OHE = one_hot_encode(seqs[0], True)
-# print(hot_one_encode(aa_OHE, True))
+# comment this out if you want to use random sequences
+if args.test:
+    seqs = random_aa_seq(n_seqs)
+    print(seqs[0])
+    aa_OHE = one_hot_encode(seqs[0], True)
+    print(hot_one_encode(aa_OHE, True))
 
 max_len = max(len(seq) for seq in seqs)
 print("Number of sequences in dataset:", len(seqs))

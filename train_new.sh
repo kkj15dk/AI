@@ -4,7 +4,7 @@
 #BSUB -q gpuv100
 #BSUB -R "select[gpu32gb]"
 ### -- set the job Name -- 
-#BSUB -J train_new
+#BSUB -J t_new
 ### -- ask for number of cores (default: 4) -- 
 #BSUB -n 4
 ### -- Select the resources: 1 gpu in exclusive process mode --
@@ -12,7 +12,7 @@
 ### -- specify that the cores must be on the same host -- 
 #BSUB -R "span[hosts=1]"
 ### -- specify amount of memory per core/slot -- 
-#BSUB -R "rusage[mem=5GB]"
+#BSUB -R "rusage[mem=4GB]"
 ### -- set walltime limit: hh:mm -- 
 #BSUB -W 24:00
 ### -- send notification at start -- 
