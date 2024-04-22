@@ -398,6 +398,15 @@ for epoch in range(num_epochs):
     val_gap_accs.append(val_gap_acc)
     val_losses.append(val_avg_loss)
 
+    cnn_data_label = (train_losses, val_losses, "cVAE")
+    val_acc = (val_accs, "cVAE")
+    val_aa_acc = (val_aa_accs, "cVAE")
+    val_gap_acc = (val_gap_accs, "cVAE")
+    quick_loss_plot([cnn_data_label], args.plots_path + "/" + args.job_id + "_loss", "CE + KLD")
+    quick_acc_plot([val_acc], args.plots_path + "/" + args.job_id + "_val_acc")
+    quick_acc_plot([val_aa_acc], args.plots_path + "/" + args.job_id + "_val_acc_aa")
+    quick_acc_plot([val_gap_acc], args.plots_path + "/" + args.job_id + "_val_acc_gap")
+
     if val_avg_loss < best_val_loss:
         best_val_loss = val_avg_loss
         best_val_acc = val_avg_acc
@@ -411,16 +420,6 @@ for epoch in range(num_epochs):
     
     # Print the average loss for the epoch
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_avg_loss:.4f} | Val Loss: {val_avg_loss:.4f} | Val Acc: {val_avg_acc:.4f} | Val aa Acc: {val_aa_acc:.4f} | Val gap Acc: {val_gap_acc:.4f}| LR: {learning_rate:g}")
-
-
-cnn_data_label = (train_losses, val_losses, "cVAE")
-val_acc = (val_accs, "cVAE")
-val_aa_acc = (val_aa_accs, "cVAE")
-val_gap_acc = (val_gap_accs, "cVAE")
-quick_loss_plot([cnn_data_label], args.plots_path + "/" + args.job_id + "_loss", "CE + KLD")
-quick_acc_plot([val_acc], args.plots_path + "/" + args.job_id + "_val_acc")
-quick_acc_plot([val_aa_acc], args.plots_path + "/" + args.job_id + "_val_acc_aa")
-quick_acc_plot([val_gap_acc], args.plots_path + "/" + args.job_id + "_val_acc_gap")
 
 # Load the state of the best model
 state_dict = torch.load(best_model_path)
