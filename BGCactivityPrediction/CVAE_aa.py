@@ -10,15 +10,37 @@ from MLvisualisation import *
 from aa_test import *
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning) # To remove a warning from logomaker in MLvisualisation.py
+import argparse
+
+# Define the parser
+parser = argparse.ArgumentParser(description='Train the cVAE')
+
+# Declare arguments
+parser.add_argument('--job_id', type=str, required=True)
+parser.add_argument('--models_path', type=str, required=True)
+
+parser.add_argument('--batch_size', type=int, default=10)
+parser.add_argument('--input_channels', type=int, default=22)
+parser.add_argument('--hidden_channels', type=int, default=256)
+parser.add_argument('--latent_dim', type=int, default=10)
+parser.add_argument('--kernel_size', type=int, default=11)
+parser.add_argument('--stride', type=int, default=1)
+parser.add_argument('--padding', type=int, default=5)
+args = parser.parse_args()
+for arg in vars(args):
+    print(f"{arg}: {getattr(args, arg)}")
+
+best_model_path = f"{args.models_path}/{args.job_id}_parameters.pth"
+print("The model parameters will be saved at: " + best_model_path)
 
 # Set the parameters for the cVAE
-batch_size = 10
-input_channels = 22
-hidden_channels = 256
-latent_dim = 10
-kernel_size = 11
-stride = 1
-padding = 5
+batch_size = args.batch_size
+input_channels = args.input_channels
+hidden_channels = args.hidden_channels
+latent_dim = args.latent_dim
+kernel_size = args.kernel_size
+stride = args.stride
+padding = args.padding
 
 lr = 0.0001 # Learning rate of 0.01 seems too high, it ruins the model
 scheduler_step = 10
@@ -122,7 +144,6 @@ def loss_fn(outputs, inputs, mu, logvar, weight = CEweights):
     return CE + KLD
 
 # Load the data
-# aa_file = "new4_PKSs.fa"
 aa_file = "clustalo_alignment.aln"
 train_record_aa = [record for record in SeqIO.parse(aa_file, "fasta")]
 train_seq_aa = [str(record.seq) for record in train_record_aa]
@@ -180,16 +201,16 @@ class Encoder(nn.Module):
             nn.Conv1d(hidden_channels, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(),
             # nn.MaxPool1d(kernel_size=2, stride=2),
-            # nn.Conv1d(hidden_channels*2, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
-            # nn.ReLU(),
+            nn.Conv1d(hidden_channels*2, hidden_channels*4, kernel_size=kernel_size, stride=stride, padding=padding),
+            nn.ReLU(),
             # nn.MaxPool1d(kernel_size=2, stride=2),
             nn.Flatten(),
             # nn.Linear(hidden_channels * 2 * self.output_len, hidden_channels * 2 * self.output_len),
             # nn.ReLU()
         )
         
-        self.fc_mu = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
-        self.fc_logvar = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
+        self.fc_mu = nn.Linear(hidden_channels * 4 * self.output_len, latent_dim)
+        self.fc_logvar = nn.Linear(hidden_channels * 4 * self.output_len, latent_dim)
         
     def forward(self, x):
         x = self.encoder(x)
@@ -204,14 +225,14 @@ class Decoder(nn.Module):
         self.output_len = output_len
         # self.fc_z = nn.Linear(latent_dim, hidden_channels * 2 * self.output_len)
         self.fc_z = nn.Sequential(
-            nn.Linear(latent_dim, hidden_channels * 2 * self.output_len))
+            nn.Linear(latent_dim, hidden_channels * 4 * self.output_len))
             # # nn.ReLU(),
             # nn.Linear(hidden_channels * 2 * self.output_len, hidden_channels * 2 * self.output_len),
             # nn.ReLU())
         self.decoder = nn.Sequential(
             # nn.Upsample(scale_factor=2, mode='nearest'),
-            # nn.ConvTranspose1d(hidden_channels*2, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
-            # nn.ReLU(),
+            nn.ConvTranspose1d(hidden_channels*4, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
+            nn.ReLU(),
             # nn.Upsample(scale_factor=2, mode='nearest'),
             nn.ConvTranspose1d(hidden_channels*2, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(),
@@ -223,7 +244,7 @@ class Decoder(nn.Module):
 
     def forward(self, z):
         z = self.fc_z(z)
-        z = z.view(-1, self.hidden_channels * 2, self.output_len)
+        z = z.view(-1, self.hidden_channels * 4, self.output_len)
         x_hat = self.decoder(z)
         return x_hat
 
@@ -359,7 +380,7 @@ for epoch in range(num_epochs):
     if val_avg_loss < best_val_loss:
         best_val_loss = val_avg_loss
         best_val_acc = val_avg_acc
-        torch.save(model.state_dict(), 'best_clustalo_hpc_model.pth')
+        torch.save(model.state_dict(), best_model_path)
         epoch_since_improvement = 0
     else:
         epoch_since_improvement += 1
@@ -379,9 +400,6 @@ quick_loss_plot([cnn_data_label])
 quick_acc_plot([val_acc], "val_acc")
 quick_acc_plot([val_aa_acc], "val_aa_acc")
 quick_acc_plot([val_gap_acc], "val_gap_acc")
-
-# Assume `model` is your model and `best_model_path` is the path to the saved state of the best model
-best_model_path = "best_clustalo_hpc_model.pth"
 
 # Load the state of the best model
 state_dict = torch.load(best_model_path)

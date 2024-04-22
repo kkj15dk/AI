@@ -15,7 +15,7 @@ setup(
     author="Kasper Krunderup Jakobsen",
     author_email="kasperkrunderup@gmail.com",
     description="A project for analyzing biosynthetic gene clusters (BGCs) in genomes, and for predicting the chemical structures and activities of the compounds they encode.",
-    long_description=open('README.md').read(),
+    long_description=open('readme.md').read(),
     long_description_content_type="text/markdown",
     url="https://github.com/",
     classifiers=[
