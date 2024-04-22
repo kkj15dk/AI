@@ -33,6 +33,11 @@ for arg in vars(args):
 
 best_model_path = f"{args.models_path}/{args.job_id}_parameters.pth"
 print("The model parameters will be saved at: " + best_model_path)
+if args.existing_id == None:
+    START_FROM_EXISTING = False
+else:
+    print("Using " + args.models_path + args.existing_id + ".pth as parameter starting point for the model")
+    START_FROM_EXISTING = True
 
 # Set the parameters for the cVAE
 batch_size = args.batch_size

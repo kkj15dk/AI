@@ -1,7 +1,8 @@
+- scheduler for gap_weight
+- InterPro script to analyze model outputs
 
 - wget -qO- https://dl.secondarymetabolites.org/mibig/mibig_json_3.1.tar.gz | tar xvz
 
-- Masking padded data
 
 -- I'll try to help with a link to a few papers:
 -- ProteinMPNN: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9997061/
