@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser(description='Train the cVAE')
 # Declare arguments
 parser.add_argument('--job_id', type=str, required=True)
 parser.add_argument('--models_path', type=str, required=True)
-parser.add_argument('--existing_id', type=int, required=False, default=None)
+parser.add_argument('--existing_id', required=False, default=None)
 parser.add_argument('--batch_size', type=int, default=10)
 parser.add_argument('--input_channels', type=int, default=22)
 parser.add_argument('--hidden_channels', type=int, default=256)
@@ -32,6 +32,11 @@ for arg in vars(args):
 
 best_model_path = f"{args.models_path}/{args.job_id}_parameters.pth"
 print("The model parameters will be saved at: " + best_model_path)
+if args.existing_id == None:
+    START_FROM_EXISTING = False
+else:
+    print("Using " + args.models_path + args.existing_id + ".pth as parameter starting point for the model")
+    START_FROM_EXISTING = True
 
 # Set the parameters for the cVAE
 batch_size = args.batch_size
