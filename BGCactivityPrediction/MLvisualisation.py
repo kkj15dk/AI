@@ -45,6 +45,23 @@ def quick_loss_plot(data_label_list, loss_type="BCEWithLogitsLoss"):
     plt.savefig('loss_plot.png')
     plt.clf()  # clear the current figure
 
+def quick_acc_plot(val_accs, filename, loss_type="Validation accuracy"):
+    import matplotlib.pyplot as plt
+
+    plt.clf()
+    for i, (data, label) in enumerate(val_accs):    
+        plt.plot(data, linestyle='--', color=f"C{i}", label=f"{label} val acc")
+
+    plt.legend()
+    plt.ylabel(loss_type)
+    plt.xlabel("Epoch")
+
+    plt.legend(bbox_to_anchor=(0.75, 1), loc='upper left')
+    plt.subplots_adjust(left=0.1, right=0.95, bottom=0.1, top=0.9)
+
+    plt.savefig(filename + '.png')
+    plt.clf()  # clear the current figure
+
 # Get the convolutional layers from the model
 def get_conv_layers_from_model(model):
     '''
@@ -58,7 +75,7 @@ def get_conv_layers_from_model(model):
         model_weights (list): A list of the weights of the convolutional layers.
         bias_weights (list): A list of the bias weights of the convolutional layers.
     '''
-    model_children = list(model.children())
+    model_children = list(model.modules())
     
     # counter to keep count of the conv layers
     model_weights = [] # we will save the conv layer weights in this list
@@ -74,15 +91,6 @@ def get_conv_layers_from_model(model):
             model_weights.append(model_children[i].weight)
             conv_layers.append(model_children[i])
             bias_weights.append(model_children[i].bias)
-
-        # also check sequential objects' children for conv1d
-        elif type(model_children[i]) == nn.Sequential:
-            for child in model_children[i]:
-                if type(child) == nn.Conv1d:
-                    counter += 1
-                    model_weights.append(child.weight)
-                    conv_layers.append(child)
-                    bias_weights.append(child.bias)
 
     print(f"Total convolutional layers: {counter}")
     return conv_layers, model_weights, bias_weights
@@ -100,6 +108,8 @@ def view_filters(model_weights, num_cols=8, input_channels=['A','C','G','T']):
     Returns:
         None
     """
+    # print(model_weights)
+    # print(model_weights[0].shape)
     model_weights = model_weights[0]
     num_filt = model_weights.shape[0]
     filt_width = model_weights[0].shape[1]

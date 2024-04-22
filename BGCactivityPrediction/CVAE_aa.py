@@ -1,99 +1,104 @@
 from torch.utils.data import IterableDataset, DataLoader
+import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR
+import torch.nn as nn
+import torch.functional as F
 from MLbuilding import *
+from DNAconversion import *
 from sklearn.model_selection import train_test_split
-from Bio import SeqIO
 from MLvisualisation import *
-from aa_test import random_aa_seq
+from aa_test import *
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning) # To remove a warning from logomaker in MLvisualisation.py
 
-batch_size = 5
+# Set the parameters for the cVAE
+batch_size = 10
 input_channels = 22
-hidden_channels = 32
-latent_dim = 100
-kernel_size = 3
+hidden_channels = 256
+latent_dim = 10
+kernel_size = 11
 stride = 1
-padding = 1
+padding = 5
 
-lr = 0.01
-num_epochs = 10
+lr = 0.0001 # Learning rate of 0.01 seems too high, it ruins the model
+scheduler_step = 10
+gamma = 0.1 # Learning rate decay
+early_stopping_patience = 10
+num_epochs = 100
+n_seqs = 10000
 
 # Set the random seed
-random_seed = 15
-set_seed(15)
-
-# Set the maximum length of the sequences (divisible by 4 for easy twice halving through the CVAE network)
-# max_len = 3600
-max_len = 4000
+random_seed = 42
+set_seed(random_seed)
 
 # set the device
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device set as {DEVICE}")
 
-class IterableDataset(IterableDataset):
-    def __init__(self, generator_function, records, len, transform=None, batch_size=batch_size):
+CEweights = torch.cat((torch.ones(input_channels - 1), torch.tensor([0.9]))).to(DEVICE) # Weights for the cross entropy loss
+
+# Set the number of decimal places to 2
+torch.set_printoptions(precision=2)
+
+class MyIterDataset(IterableDataset):
+    def __init__(self, generator_function, seqs, len, transform=None, batch_size=batch_size):
         self.generator_function = generator_function
-        self.records = records
+        self.seqs = seqs
         self.transform = transform
         self.batch_size = batch_size
         self.len = len
 
-
     def __iter__(self):
-        data = []
-        # Create a new record_generator for each epoch
-        record_generator = self.records
-        # Pass the new record_generator to the generator function
-        generator = self.generator_function(record_generator)
+        # Create a generator object
+        generator = self.generator_function(self.seqs)
         for item in generator:
             if self.transform:
                 item = self.transform(item)
-            data.append(item)
-            if len(data) == self.batch_size:
-                yield data
-                data = []
-        if data:
-            yield data
+            yield item.float()
     
     def __len__(self):
         return self.len
-        
-def record_generator(files):
-    # This function will yield genbank records from a list of files
-    for file in files:
-        for record in SeqIO.parse(file, "genbank"):
-            yield record
-
-def OHEDNAgen(record_gen):
-    # yield from record_gen
-    for record in record_gen:
-        seq = torch.tensor(one_hot_encode(record.seq))
-        yield seq
-
-def OHEAAgen(record_gen):
-    # yield from record_gen
-    for record in record_gen:
-        # seq = torch.tensor(one_hot_encode(record.seq, aa=True))
-        seq = torch.tensor(one_hot_encode(record, aa=True))
-        # # Find the indices of non-zero elements
-        # indices = torch.nonzero(seq).t()
-
-        # # Get the values of the non-zero elements
-        # values = seq[indices[0], indices[1]]
-
-        # # Create a sparse tensor
-        # seq = torch.sparse_coo_tensor(indices, values, seq.size())
-
-        yield seq
 
 def pad_to_length(tensor, length, padding_value=0):
+    """
+    Pads or truncates a tensor to a specified length with a given padding value.
+
+    Args:
+        tensor (torch.Tensor): The input tensor to be padded.
+        length (int): The desired length of the tensor after padding.
+        padding_value (int, optional): The value used for padding. Defaults to 0.
+
+    Returns:
+        tuple: A tuple containing the padded tensor and a mask tensor indicating the padded regions.
+    """
     if tensor.shape[1] < length:
         tensor = F.pad(tensor, (0, length - tensor.shape[1]), value=padding_value)
     else:
         tensor = tensor[:, :length]
     return tensor
+
+def OHEAAgen(seqs):
+    # yield from record_gen
+    for seq in seqs:
+        seq = torch.tensor(one_hot_encode(seq, aa=True))
+
+        yield seq
+
+def CVAEcollate_fn(batch):
+    '''
+    Given a batch of data, collate the inputs into their own tensors.
     
-def loss_fn(outputs, inputs, mu, logvar):
+    Args:
+        batch (list): A list containing the input values.
+    
+    Returns:
+        list: A list containing the input and output tensors.
+    '''
+    # stack the inputs into a single tensor
+    inputs = torch.stack(batch)
+    return inputs
+
+def loss_fn(outputs, inputs, mu, logvar, weight = CEweights):
     """
     Calculates the loss function for a Conditional Variational Autoencoder (CVAE).
 
@@ -107,85 +112,62 @@ def loss_fn(outputs, inputs, mu, logvar):
         torch.Tensor: The calculated loss value.
 
     """
-    BCE = F.binary_cross_entropy_with_logits(outputs, inputs, reduction='sum')
+
+    labels = inputs.argmax(dim=1)
+
+    CE = F.cross_entropy(outputs, labels, weight = weight, reduction='sum')
+
     KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    return BCE + KLD
+    
+    return CE + KLD
 
 # Load the data
-aa_file = "new4_PKSs.fa"
-# aa_file = "test_clustalo_alignment.aln"
+# aa_file = "new4_PKSs.fa"
+aa_file = "clustalo_alignment.aln"
 train_record_aa = [record for record in SeqIO.parse(aa_file, "fasta")]
 train_seq_aa = [str(record.seq) for record in train_record_aa]
-# train_record_aa = [record for record in train_record_aa if len(record) >= max_len] # filter out sequences longer than max_len
-
-# aa_file = random_aa_seq(1000)
-# train_record_aa = aa_file
-
 
 print("Number of records in test_record_aa:", len(train_record_aa))
-
 print("Number of non redundant sequences in test_record_aa:", len(set(train_seq_aa)))
 print("Using this subset of sequences for training")
-train_seq_aa = list(set(train_seq_aa))
 
-max_len = max(len(seq) for seq in train_seq_aa)
+# Get the unique sequences
+seqs = list(set(train_seq_aa))
 
-def CVAEcollate_fn(batch, length=max_len, padding_value=0): # Not easily parseable in the dataloader, so I'll set the max_len before making the collate_fn
-    '''
-    Given a batch of data, collate the inputs into their own tensors.
-    
-    Args:
-        batch (list): A list containing the input values.
-    
-    Returns:
-        list: A list containing the input and output tensors.
-    '''
-    # stack the inputs into a single tensor
-    # print(len(batch))
-    batch = batch[0] # Someone please fix this!!! Why is batch a list with one element?
-    # print(len(batch))
-    inputs = [pad_to_length(item, length, padding_value) for item in batch]
-    inputs = torch.stack(inputs)
-    return inputs
+# # comment this out if you want to use random sequences
+# seqs = random_aa_seq(n_seqs)
+# print(seqs[0])
+# aa_OHE = one_hot_encode(seqs[0], True)
+# print(hot_one_encode(aa_OHE, True))
 
-print("Longest sequence in test_record_aa:", max_len, "setting max_len to this value")
-print("Shortes sequence in test_record_aa:", min(len(record) for record in train_seq_aa))
-# print("Longest sequence in test_record_aa:", max(len(record.seq) for record in train_record_aa))
-
-
-def plot_train_test_hist(train_seq_aa,bins=20):
-    ''' Check distribution of sequence lengths, sanity check that its not skewed'''
-    list = [len(seq) for seq in train_seq_aa]
-    plt.hist(list, bins=bins, label='train', alpha=1)
-    plt.legend()
-    plt.xlabel("seq length",fontsize=14)
-    plt.ylabel("count",fontsize=14)
-    plt.savefig("train_hist.png")
-
-plot_train_test_hist(train_seq_aa)
+max_len = max(len(seq) for seq in seqs)
+print("Number of sequences in dataset:", len(seqs))
+print("Longest sequence in dataset:", max_len)
 
 # Shuffle the list
-np.random.shuffle(train_seq_aa)
+np.random.shuffle(seqs)
 
 # Split the list into training, validation, and test sets
-train_files, test_files = train_test_split(train_seq_aa, test_size=0.2, random_state=random_seed)
-train_files, val_files = train_test_split(train_files, test_size=0.25, random_state=random_seed)  # 0.25 x 0.8 = 0.2
+train_seqs, test_seqs = train_test_split(seqs, test_size=0.2, random_state=random_seed)
+train_seqs, val_seqs = train_test_split(train_seqs, test_size=0.25, random_state=random_seed)  # 0.25 x 0.8 = 0.2
 
 # Create a SparseDataset
-train_dataset = IterableDataset(OHEAAgen, train_files, len(train_files))
-val_dataset = IterableDataset(OHEAAgen, val_files, len(val_files))
-test_dataset = IterableDataset(OHEAAgen, test_files, len(test_files))
-
-print("train iterable dataset:", train_dataset)
+train_dataset = MyIterDataset(OHEAAgen, train_seqs, len(train_seqs))
+val_dataset = MyIterDataset(OHEAAgen, val_seqs, len(val_seqs))
+test_dataset = MyIterDataset(OHEAAgen, test_seqs, len(test_seqs))
 
 # Create a DataLoader
-train_dataloader = DataLoader(train_dataset, collate_fn=CVAEcollate_fn)
-val_dataloader = DataLoader(val_dataset, collate_fn=CVAEcollate_fn)
-test_dataloader = DataLoader(test_dataset, collate_fn=CVAEcollate_fn)
+train_dl = DataLoader(train_dataset, collate_fn=CVAEcollate_fn, batch_size=batch_size)
+val_dl = DataLoader(val_dataset, collate_fn=CVAEcollate_fn, batch_size=batch_size)
+test_dl = DataLoader(test_dataset, collate_fn=CVAEcollate_fn, batch_size=batch_size)
 
 print("Train len:", train_dataset.len)
 print("Val len:", val_dataset.len)
 print("Test len:", test_dataset.len)
+
+print("Train_dl:", len(train_dl))
+print("Val_dl:", len(val_dl))
+print("Test_dl:", len(test_dl))
 
 class Encoder(nn.Module):
     def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, output_len):
@@ -198,12 +180,17 @@ class Encoder(nn.Module):
             nn.Conv1d(hidden_channels, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(),
             # nn.MaxPool1d(kernel_size=2, stride=2),
-            nn.Flatten()
+            # nn.Conv1d(hidden_channels*2, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
+            # nn.ReLU(),
+            # nn.MaxPool1d(kernel_size=2, stride=2),
+            nn.Flatten(),
+            # nn.Linear(hidden_channels * 2 * self.output_len, hidden_channels * 2 * self.output_len),
+            # nn.ReLU()
         )
-
+        
         self.fc_mu = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
         self.fc_logvar = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
-
+        
     def forward(self, x):
         x = self.encoder(x)
         mu = self.fc_mu(x)
@@ -215,14 +202,22 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         self.hidden_channels = hidden_channels
         self.output_len = output_len
-        self.fc_z = nn.Linear(latent_dim, hidden_channels * 2 * self.output_len)
+        # self.fc_z = nn.Linear(latent_dim, hidden_channels * 2 * self.output_len)
+        self.fc_z = nn.Sequential(
+            nn.Linear(latent_dim, hidden_channels * 2 * self.output_len))
+            # # nn.ReLU(),
+            # nn.Linear(hidden_channels * 2 * self.output_len, hidden_channels * 2 * self.output_len),
+            # nn.ReLU())
         self.decoder = nn.Sequential(
             # nn.Upsample(scale_factor=2, mode='nearest'),
-            nn.ReLU(),
-            nn.ConvTranspose1d(hidden_channels*2, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            # nn.ConvTranspose1d(hidden_channels*2, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
+            # nn.ReLU(),
             # nn.Upsample(scale_factor=2, mode='nearest'),
+            nn.ConvTranspose1d(hidden_channels*2, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(),
+            # nn.Upsample(scale_factor=2, mode='nearest'),
             nn.ConvTranspose1d(hidden_channels, input_channels, kernel_size=kernel_size, stride=stride, padding=padding),
+            nn.ReLU(),
             nn.Softmax(dim = 1)
         )
 
@@ -238,7 +233,7 @@ class ConvolutionalVAE(nn.Module):
 
         # Define the output lengths between different layers of the model. hopefully this will make the model easier to manipulate later on
         self.max_len = max_len
-        self.output_len = int(((self.max_len - kernel_size + 2*padding) / stride + 1)) # Can give weird values if stride doesn't divide the length
+        self.output_len = int(((self.max_len - kernel_size + 2*padding) / stride + 1) ) # Can give weird values if stride doesn't divide the length
         
         print("Output length: ", self.output_len)
         # Encoder
@@ -257,93 +252,67 @@ class ConvolutionalVAE(nn.Module):
         x_hat = self.decoder(z)
         return x_hat, mu, logvar
 
-def CVAE_train_loop(DEVICE, train_dl, model, loss_fn, optimizer, train_running_loss):
-    """
-    Trains the model for one epoch using the provided training data.
-
-    Args:
-        n (int): The number of batches after which to perform optimization.
-        DEVICE (torch.device): The device to use for training (e.g., 'cuda' or 'cpu').
-        train_dl (torch.utils.data.Dataloader): The training data loader.
-        model (torch.nn.Module): The model to train.
-        loss_fn: The loss function.
-        optimizer: The optimizer.
-        train_running_loss (float): The running loss for the training data.
-
-    Returns:
-        float: The average loss for the epoch.
-    """
+def train_loop(device, train_dl, model, loss_fn, optimizer):
     model.train()
-    train_running_loss = 0.0
+    train_loss = 0
+    total_samples = 0
     for inputs in train_dl:
-        # Move the inputs and targets to the device
-        inputs = inputs.float().to(DEVICE)
+        batch_size = inputs.size(0)
+        total_samples += batch_size
         
+        inputs = inputs.to(device)
         optimizer.zero_grad()
-
-        # Forward pass
         outputs, mu, logvar = model(inputs)
-        
-        # Loss: reconstruction loss + KL divergence
         loss = loss_fn(outputs, inputs, mu, logvar)
-
-        # Backward pass and optimize
         loss.backward()
         optimizer.step()
+        train_loss += loss.item()
+    return train_loss / total_samples
 
-        train_running_loss += loss.item()
-
-    # Calculate the average loss for the epoch
-    train_avg_loss = train_running_loss / len(train_dl.dataset)
-    return train_avg_loss
-
-def CVAE_val_loop(DEVICE, val_dl, model, loss_fn, val_running_loss, all_preds, all_targets, early_stopping_epochs=5):
-    """
-    Perform the validation loop for the given model.
-
-    Args:
-        DEVICE (torch.device): The device to run the computations on.
-        val_dl (torch.utils.data.DataLoader): The validation dataloader.
-        model (torch.nn.Module): The model to evaluate.
-        loss_fn: The loss function used for evaluation.
-        val_running_loss (float): The running loss for validation.
-        all_preds (list): List to store all the predictions.
-        all_targets (list): List to store all the targets.
-
-    Returns:
-        float: The average validation loss.
-        list: All the predictions.
-        list: All the targets.
-    """
+def val_loop(device, val_dl, model, loss_fn):
     model.eval()
-    best_val_loss = float('inf')
-    epochs_since_improvement = 0
+    val_loss = 0
+    total_correct = 0
+    total_samples = 0
+    aa_correct = 0
+    aa_total = 0
+    gap_correct = 0
+    gap_total = 0
+    with torch.no_grad():
+        for inputs in val_dl:
+            batch_size = inputs.size(0)
+            total_samples += batch_size
 
-    for inputs in val_dl: # iterate over the validation dataloader
-        inputs = inputs.float().to(DEVICE)
+            inputs = inputs.to(device)
+            outputs, mu, logvar = model(inputs)
+            val_loss += loss_fn(outputs, inputs, mu, logvar).item()
+            
+            # Calculate argmax of outputs and inputs
+            outputs_argmax = outputs.argmax(dim=1)
+            inputs_argmax = inputs.argmax(dim=1)
 
-        # Forward pass
-        outputs, mu, logvar = model(inputs)
-        loss = loss_fn(outputs, inputs, mu, logvar)
+            # Calculate conditions
+            correct_preds = outputs_argmax == inputs_argmax
+            aa_condition = inputs_argmax != 21
+            gap_condition = inputs_argmax == 21
 
-        # # Get predictions
-        # preds = torch.sigmoid(outputs) > 0.5 # threshold the output to get the class prediction
-        # all_preds.extend(preds.cpu().numpy())
-        # all_targets.extend(inputs.cpu().numpy())
+            # Calculate accuracies
+            total_correct += correct_preds.float().sum().item()
+            aa_correct += (correct_preds & aa_condition).float().sum().item()
+            aa_total += aa_condition.float().sum().item()
+            gap_correct += (correct_preds & gap_condition).float().sum().item()
+            gap_total += gap_condition.float().sum().item()
 
-        # Calculate loss
-        val_running_loss += loss.item()
+            avg_val_loss = val_loss / total_samples
+            avg_val_acc = total_correct / (total_samples * max_len)
 
-    val_avg_loss = val_running_loss / len(val_dl)
-    if val_avg_loss < best_val_loss:
-        best_val_loss = val_avg_loss
-        torch.save(model.state_dict(), 'best_model.pth')
-    else:
-        epochs_since_improvement += 1
-        if epochs_since_improvement == early_stopping_epochs:
-            print('Early stopping')
-            return val_avg_loss, all_preds, all_targets
-    return val_avg_loss, all_preds, all_targets
+            val_aa_acc = aa_correct / aa_total
+            if gap_total == 0:
+                val_gap_acc = 1
+            else:
+                val_gap_acc = gap_correct / gap_total
+
+        return avg_val_loss, avg_val_acc, val_aa_acc, val_gap_acc
 
 # Instantiate the model
 model = ConvolutionalVAE(input_channels,
@@ -356,58 +325,119 @@ model = ConvolutionalVAE(input_channels,
                          ).to(DEVICE)
 
 # Define the optimizer
-optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-# optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+optimizer = optim.Adam(model.parameters(), lr=lr)
+
+# Define your scheduler
+scheduler = StepLR(optimizer, step_size=scheduler_step, gamma=gamma)
 
 optimizer.zero_grad()  # initialize gradients
 
 # Initialize variables
-all_preds = [0]
-all_labels = [1]
 train_losses = []
 val_losses = []
+val_accs = []
+val_aa_accs = []
+val_gap_accs = []
+best_val_loss = float('inf')
+epoch_since_improvement = 0
 
 for epoch in range(num_epochs):
-    # Set the model to training mode
-    model.train()
-    
-    # Initialize the running loss
-    train_running_loss = 0.0
-    val_running_loss = 0.0
 
     # Training loop
-    train_avg_loss = CVAE_train_loop(DEVICE, train_dataloader, model, loss_fn, optimizer, train_running_loss)
+    learning_rate = scheduler.get_last_lr()[0]
+    train_avg_loss = train_loop(DEVICE, train_dl, model, loss_fn, optimizer)
     train_losses.append(train_avg_loss)
+    scheduler.step()  # step the scheduler
 
     # Evaluation loop
-    model.eval()  # put model in evaluation mode
-    with torch.no_grad():  # disable gradient computation
-        val_avg_losses, all_preds, all_labels = CVAE_val_loop(DEVICE, val_dataloader, model, loss_fn, val_running_loss, all_preds, all_labels)
-        val_losses.append(val_avg_losses)
+    val_avg_loss, val_avg_acc, val_aa_acc, val_gap_acc = val_loop(DEVICE, val_dl, model, loss_fn)
+    val_accs.append(val_avg_acc)
+    val_aa_accs.append(val_aa_acc)
+    val_gap_accs.append(val_gap_acc)
+    val_losses.append(val_avg_loss)
+
+    if val_avg_loss < best_val_loss:
+        best_val_loss = val_avg_loss
+        best_val_acc = val_avg_acc
+        torch.save(model.state_dict(), 'best_clustalo_hpc_model.pth')
+        epoch_since_improvement = 0
+    else:
+        epoch_since_improvement += 1
+        if epoch_since_improvement >= early_stopping_patience:
+            print(f"Early stopping. No improvement in {early_stopping_patience} epochs.")
+            break  # This will exit the training loop
+    
     # Print the average loss for the epoch
-    val_acc = np.mean(np.array(all_preds).flatten() == np.array(all_labels).flatten())
-    print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_avg_loss:.4f} | Val Loss: {val_avg_losses:.4f} | Val Acc: {val_acc:.4f}")
+    print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_avg_loss:.4f} | Val Loss: {val_avg_loss:.4f} | Val Acc: {val_avg_acc:.4f} | Val aa Acc: {val_aa_acc:.4f} | Val gap Acc: {val_gap_acc:.4f}| LR: {learning_rate:g}")
 
-cnn_data_label = (train_losses, val_losses, "CNN")
+
+cnn_data_label = (train_losses, val_losses, "cVAE")
+val_acc = (val_accs, "cVAE")
+val_aa_acc = (val_aa_accs, "cVAE")
+val_gap_acc = (val_gap_accs, "cVAE")
 quick_loss_plot([cnn_data_label])
+quick_acc_plot([val_acc], "val_acc")
+quick_acc_plot([val_aa_acc], "val_aa_acc")
+quick_acc_plot([val_gap_acc], "val_gap_acc")
 
-conv_layers, model_weights, bias_weights = get_conv_layers_from_model(model)
-view_filters(model_weights)
+# Assume `model` is your model and `best_model_path` is the path to the saved state of the best model
+best_model_path = "best_clustalo_hpc_model.pth"
 
-# just use some seqs from test_df to activate filters
-# seqs = [record.seq for record in test_files]
-seqs = [record for record in test_files]
-some_seqs = random.choices(seqs, k=2000)
+# Load the state of the best model
+state_dict = torch.load(best_model_path)
 
-filter_activations = get_filter_activations(some_seqs, conv_layers[0], DEVICE, input_channels=["A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y", "*"], aa=True)
-view_filters_and_logos(model_weights,filter_activations, input_channels=["A", "C", "D", "E", "F", "G", "H", "I", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "V", "W", "Y", "*"])
+# Apply the state to your model
+model.load_state_dict(state_dict)
 
-def generate_digit(mean, var):
-    z_sample = torch.tensor([[mean, var]], dtype=torch.float).to(DEVICE)
-    x_decoded = model.decode(z_sample)
-    digit = x_decoded.detach().cpu().reshape(28, 28) # reshape vector to 2d array
-    plt.imshow(digit, cmap='gray')
-    plt.axis('off')
-    plt.show()
+# Set the model to evaluation mode
+model.eval()
 
-generate_digit(0.0, 1.0), generate_digit(1.0, 0.0)
+# Generate a random latent vector
+latent_vector = torch.randn(1, latent_dim).to(DEVICE)  # Assuming latent_dim is the dimension of the latent space
+
+# Pass the latent vector through the decoder
+with torch.no_grad():
+    reconstructed_output = model.decoder(latent_vector)
+
+# Convert the reconstructed output to the desired format or representation
+sample = reconstructed_output.squeeze().cpu().numpy()  # Assuming the output is a tensor
+
+# Convert the output to binary form
+sample = sample.argmax(axis=0)
+sample = F.one_hot(torch.tensor(sample), num_classes=22).float().numpy().T
+
+def remove_common_gaps(seq1, seq2):
+    new_seq1 = []
+    new_seq2 = []
+
+    for aa1, aa2 in zip(seq1, seq2):
+        if aa1 != '-' or aa2 != '-':
+            new_seq1.append(aa1)
+            new_seq2.append(aa2)
+
+    return ''.join(new_seq1), ''.join(new_seq2)
+
+# Convert the one-hot encoded sequence to a string
+sample_seq = hot_one_encode(sample, True)
+aaseq = seqs[random.randint(0, len(seqs) - 1)]
+
+# Reconstruct the random input
+aa_OHE = torch.tensor(one_hot_encode(aaseq, True)).float().to(DEVICE)
+aa_OHE = pad_to_length(aa_OHE, max_len)
+
+with torch.no_grad():
+    recon_aaseq_OHE = model.decoder(model.encoder(aa_OHE.unsqueeze(0))[0])
+
+recon_aaseq = recon_aaseq_OHE.squeeze().cpu().numpy()
+# Convert the output to binary form
+recon_aaseq = recon_aaseq.argmax(axis=0)
+recon_aaseq = F.one_hot(torch.tensor(recon_aaseq), num_classes=22).float().numpy().T
+recon_aaseq = hot_one_encode(recon_aaseq, True)
+
+recon_aaseq_wogaps, aaseq_wogaps = remove_common_gaps(recon_aaseq, aaseq)
+
+print('Random sampl: ' + sample_seq)
+print('Random input: ' + aaseq)
+print('ReconR input: ' + recon_aaseq)
+print('Random input: ' + aaseq_wogaps)
+print('ReconR input: ' + recon_aaseq_wogaps)

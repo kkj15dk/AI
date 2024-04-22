@@ -3,6 +3,17 @@
 
 - Masking padded data
 
+-- I'll try to help with a link to a few papers:
+-- ProteinMPNN: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9997061/
+-- RoseTTAFold Diffusion: https://www.nature.com/articles/s41586-023-06415-8
+-- RosettaFoldAA : chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.biorxiv.org/content/10.1101/2023.10.09.561603v1.full.pdf
+-- Protein design with langauge models (ESM familiy): https://github.com/facebookresearch/esm
+
+-- A good entry point is colabfold: https://github.com/sokrypton/ColabFold
+
+-- And a long list here about machine learning for proteins:
+-- https://github.com/yangkky/Machine-learning-for-proteins
+
 - check these entries
 Unwanted GO term found! in entry: A0A2I2FY38
 ['GO:0022857', 'GO:0055085']
