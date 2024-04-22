@@ -28,6 +28,16 @@ parser.add_argument('--latent_dim', type=int, default=10)
 parser.add_argument('--kernel_size', type=int, default=11)
 parser.add_argument('--stride', type=int, default=1)
 parser.add_argument('--padding', type=int, default=5)
+
+parser.add_argument('--lr', type=float, default=0.00001)
+parser.add_argument('--scheduler_step', type=int, default=10)
+parser.add_argument('--gamma', type=float, default=0.1)
+parser.add_argument('--early_stopping_patience', type=int, default=10)
+parser.add_argument('--gap_weight', type=float, default=1)
+parser.add_argument('--num_epochs', type=int, default=100)
+parser.add_argument('--n_seqs', type=int, default=10000)
+parser.add_argument('--random_seed', type=int, default=42)
+
 args = parser.parse_args()
 for arg in vars(args):
     print(f"{arg}: {getattr(args, arg)}")
@@ -49,16 +59,16 @@ kernel_size = args.kernel_size
 stride = args.stride
 padding = args.padding
 
-lr = 0.00001 # Learning rate of 0.01 seems too high, it ruins the model
-scheduler_step = 10
-gamma = 0.1 # Learning rate decay
-early_stopping_patience = 10
-gap_weight = 0.9
-num_epochs = 100
-n_seqs = 10000
+lr = args.lr
+scheduler_step = args.scheduler_step
+gamma = args.gamma
+early_stopping_patience = args.early_stopping_patience
+gap_weight = args.gap_weight
+num_epochs = args.num_epochs
+n_seqs = args.n_seqs
 
 # Set the random seed
-random_seed = 42
+random_seed = args.random_seed
 set_seed(random_seed)
 
 # set the device
