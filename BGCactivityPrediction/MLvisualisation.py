@@ -6,7 +6,7 @@ import logomaker
 import pandas as pd
 from DNAconversion import one_hot_encode
 
-def quick_loss_plot(data_label_list, loss_type="BCEWithLogitsLoss"):
+def quick_loss_plot(data_label_list, filename, loss_type="BCEWithLogitsLoss"):
     '''
     Plot the loss trajectory for each train/test data.
 
@@ -42,7 +42,7 @@ def quick_loss_plot(data_label_list, loss_type="BCEWithLogitsLoss"):
     plt.legend(bbox_to_anchor=(0.75, 1), loc='upper left')
     plt.subplots_adjust(left=0.1, right=0.95, bottom=0.1, top=0.9)
 
-    plt.savefig('loss_plot.png')
+    plt.savefig(filename + '.png')
     plt.clf()  # clear the current figure
 
 def quick_acc_plot(val_accs, filename, loss_type="Validation accuracy"):
