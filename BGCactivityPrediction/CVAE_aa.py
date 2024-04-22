@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser(description='Train the cVAE')
 # Declare arguments
 parser.add_argument('--job_id', type=str, required=True)
 parser.add_argument('--models_path', type=str, required=True)
-
+parser.add_argument('--existing_id', type=int, required=False, default=None)
 parser.add_argument('--batch_size', type=int, default=10)
 parser.add_argument('--input_channels', type=int, default=22)
 parser.add_argument('--hidden_channels', type=int, default=256)
@@ -46,6 +46,7 @@ lr = 0.0001 # Learning rate of 0.01 seems too high, it ruins the model
 scheduler_step = 10
 gamma = 0.1 # Learning rate decay
 early_stopping_patience = 10
+gap_weight = 0.9
 num_epochs = 100
 n_seqs = 10000
 
@@ -57,7 +58,7 @@ set_seed(random_seed)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Device set as {DEVICE}")
 
-CEweights = torch.cat((torch.ones(input_channels - 1), torch.tensor([0.9]))).to(DEVICE) # Weights for the cross entropy loss
+CEweights = torch.cat((torch.ones(input_channels - 1), torch.tensor([gap_weight]))).to(DEVICE) # Weights for the cross entropy loss
 
 # Set the number of decimal places to 2
 torch.set_printoptions(precision=2)
@@ -201,16 +202,16 @@ class Encoder(nn.Module):
             nn.Conv1d(hidden_channels, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(),
             # nn.MaxPool1d(kernel_size=2, stride=2),
-            nn.Conv1d(hidden_channels*2, hidden_channels*4, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
+            # nn.Conv1d(hidden_channels*2, hidden_channels*4, kernel_size=kernel_size, stride=stride, padding=padding),
+            # nn.ReLU(),
             # nn.MaxPool1d(kernel_size=2, stride=2),
             nn.Flatten(),
             # nn.Linear(hidden_channels * 2 * self.output_len, hidden_channels * 2 * self.output_len),
             # nn.ReLU()
         )
         
-        self.fc_mu = nn.Linear(hidden_channels * 4 * self.output_len, latent_dim)
-        self.fc_logvar = nn.Linear(hidden_channels * 4 * self.output_len, latent_dim)
+        self.fc_mu = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
+        self.fc_logvar = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
         
     def forward(self, x):
         x = self.encoder(x)
@@ -225,14 +226,14 @@ class Decoder(nn.Module):
         self.output_len = output_len
         # self.fc_z = nn.Linear(latent_dim, hidden_channels * 2 * self.output_len)
         self.fc_z = nn.Sequential(
-            nn.Linear(latent_dim, hidden_channels * 4 * self.output_len))
+            nn.Linear(latent_dim, hidden_channels * 2 * self.output_len))
             # # nn.ReLU(),
             # nn.Linear(hidden_channels * 2 * self.output_len, hidden_channels * 2 * self.output_len),
             # nn.ReLU())
         self.decoder = nn.Sequential(
             # nn.Upsample(scale_factor=2, mode='nearest'),
-            nn.ConvTranspose1d(hidden_channels*4, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
+            # nn.ConvTranspose1d(hidden_channels*4, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
+            # nn.ReLU(),
             # nn.Upsample(scale_factor=2, mode='nearest'),
             nn.ConvTranspose1d(hidden_channels*2, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(),
@@ -244,7 +245,7 @@ class Decoder(nn.Module):
 
     def forward(self, z):
         z = self.fc_z(z)
-        z = z.view(-1, self.hidden_channels * 4, self.output_len)
+        z = z.view(-1, self.hidden_channels * 2, self.output_len)
         x_hat = self.decoder(z)
         return x_hat
 

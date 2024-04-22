@@ -4,7 +4,7 @@
 #BSUB -q gpuv100
 #BSUB -R "select[gpu32gb]"
 ### -- set the job Name -- 
-#BSUB -J train_new
+#BSUB -J train_existing
 ### -- ask for number of cores (default: 4) -- 
 #BSUB -n 4
 ### -- Select the resources: 1 gpu in exclusive process mode --
@@ -30,4 +30,4 @@ module load python3/3.10.13
 source torch-venv/bin/activate
 
 # here follow the commands you want to execute
-python -u AI/BGCactivityPrediction/CVAE_aa.py --job_id=$LSB_JOBID --models_path=Models
+python -u AI/BGCactivityPrediction/CVAE_aa.py --existing_id=0 --job_id=$LSB_JOBID --models_path=Models
