@@ -16,8 +16,8 @@ import argparse
 parser = argparse.ArgumentParser(description='Train the cVAE')
 
 # Declare arguments
-# parser.add_argument('--test', type=bool, required=False, default=True)
 parser.add_argument('--test', type=bool, required=False, default=False)
+# parser.add_argument('--test', type=bool, required=False, default=True)
 parser.add_argument('--job_id', type=str, required=False, default='test_general_pooling_encoder')
 parser.add_argument('--models_path', type=str, required=False, default='Models')
 parser.add_argument('--plots_path', type=str, required=False, default='Plots')
