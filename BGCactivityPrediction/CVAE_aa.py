@@ -16,8 +16,8 @@ import argparse
 parser = argparse.ArgumentParser(description='Train the cVAE')
 
 # Declare arguments
-parser.add_argument('--test', type=bool, required=False, default=True)
-# parser.add_argument('--test', type=bool, required=False, default=False)
+# parser.add_argument('--test', type=bool, required=False, default=True)
+parser.add_argument('--test', type=bool, required=False, default=False)
 parser.add_argument('--job_id', type=str, required=False, default='test_general_pooling_encoder')
 parser.add_argument('--models_path', type=str, required=False, default='Models')
 parser.add_argument('--plots_path', type=str, required=False, default='Plots')
@@ -29,8 +29,8 @@ parser.add_argument('--latent_dim', type=int, default=10)
 parser.add_argument('--kernel_size', type=int, default=11)
 parser.add_argument('--stride', type=int, default=1)
 parser.add_argument('--padding', type=int, default=5)
-parser.add_argument('--layers', type=int, default=2)
-parser.add_argument('--pooling', type=bool, default=False)
+parser.add_argument('--layers', type=int, default=1)
+parser.add_argument('--pooling', type=bool, default=True)
 
 parser.add_argument('--lr', type=float, default=0.0001)
 parser.add_argument('--scheduler_step', type=int, default=5)
