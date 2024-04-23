@@ -31,10 +31,11 @@ parser.add_argument('--stride', type=int, default=1)
 parser.add_argument('--padding', type=int, default=5)
 parser.add_argument('--layers', type=int, default=1)
 parser.add_argument('--pooling', type=bool, default=True)
+parser.add_argument('--pooling_window', type=int, default=2)
 
 parser.add_argument('--lr', type=float, default=0.0001)
 parser.add_argument('--scheduler_step', type=int, default=5)
-parser.add_argument('--gamma', type=float, default=0.2)
+parser.add_argument('--gamma', type=float, default=0.8)
 parser.add_argument('--early_stopping_patience', type=int, default=10)
 parser.add_argument('--gap_weight', type=float, default=1)
 parser.add_argument('--num_epochs', type=int, default=100)
@@ -63,6 +64,7 @@ stride = args.stride
 padding = args.padding
 layers = args.layers
 pooling = args.pooling
+pooling_window = args.pooling_window
 
 lr = args.lr
 scheduler_step = args.scheduler_step
@@ -286,6 +288,7 @@ model = cVAE(input_channels,
                max_len,
                layers,
                pooling,
+               pooling_window,
                ).to(DEVICE)
 if START_FROM_EXISTING:
     model.load_state_dict(torch.load(f"{args.models_path}/{args.existing_parameters}.pth"))

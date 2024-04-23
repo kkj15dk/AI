@@ -401,7 +401,7 @@ class cVAE_2(nn.Module):
     
 
 class Encoder(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len):
+    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window):
         super(Encoder, self).__init__()
         self.enc_ref = []
         self.max_len = max_len
@@ -411,7 +411,7 @@ class Encoder(nn.Module):
             self.enc_ref.append(nn.Conv1d(self.input_channels, self.hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding))
             self.enc_ref.append(nn.ReLU())
             if pooling:
-                self.max_len = int(np.ceil(self.max_len/2))
+                self.max_len = int(np.ceil(self.max_len/pooling_window))
                 self.enc_ref.append(nn.AdaptiveMaxPool1d(self.max_len))
             self.input_channels = self.hidden_channels
             self.hidden_channels *= 2
@@ -434,7 +434,7 @@ class Encoder(nn.Module):
         return mu, logvar
 
 class Decoder(nn.Module):
-    def __init__(self, hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len):
+    def __init__(self, hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window):
         super(Decoder, self).__init__()
         self.hidden_channels = hidden_channels
         self.max_len = max_len
@@ -451,7 +451,7 @@ class Decoder(nn.Module):
             if pooling:
                 self.dec_ref.append(nn.Upsample(size = self.max_len, mode='nearest'))
                 if i != layers - 1: # Don't double the length at the last layer, so that we can use the self.max_len value in the forward pass
-                    self.max_len = int(np.ceil(self.max_len/2)) # Upsampling doubles the length. Using ceil! You could choose something different.
+                    self.max_len = int(np.ceil(self.max_len/pooling_window)) # Upsampling the length. Using ceil! You could choose something different.
             self.input_channels = self.hidden_channels
             self.hidden_channels *= 2
         self.dec_ref = self.dec_ref[::-1]
@@ -468,14 +468,14 @@ class Decoder(nn.Module):
         return x_hat
     
 class cVAE(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling=False):
+    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling, pooling_window):
         super(cVAE, self).__init__()
         # Define the output lengths between different layers of the model.
         self.max_len = max_len
         # Encoder
-        self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len)
+        self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window)
         # Decoder
-        self.decoder = Decoder(hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len)
+        self.decoder = Decoder(hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window)
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
