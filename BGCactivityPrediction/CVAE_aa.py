@@ -16,8 +16,9 @@ import argparse
 parser = argparse.ArgumentParser(description='Train the cVAE')
 
 # Declare arguments
+# parser.add_argument('--test', type=bool, required=False, default=True)
 parser.add_argument('--test', type=bool, required=False, default=False)
-parser.add_argument('--job_id', type=str, required=False, default='test')
+parser.add_argument('--job_id', type=str, required=False, default='test4')
 parser.add_argument('--models_path', type=str, required=False, default='Models')
 parser.add_argument('--plots_path', type=str, required=False, default='Plots')
 parser.add_argument('--existing_parameters', required=False, default=None)
@@ -29,9 +30,9 @@ parser.add_argument('--kernel_size', type=int, default=11)
 parser.add_argument('--stride', type=int, default=1)
 parser.add_argument('--padding', type=int, default=5)
 
-parser.add_argument('--lr', type=float, default=0.00001)
-parser.add_argument('--scheduler_step', type=int, default=10)
-parser.add_argument('--gamma', type=float, default=0.1)
+parser.add_argument('--lr', type=float, default=0.0001)
+parser.add_argument('--scheduler_step', type=int, default=5)
+parser.add_argument('--gamma', type=float, default=0.2)
 parser.add_argument('--early_stopping_patience', type=int, default=10)
 parser.add_argument('--gap_weight', type=float, default=1)
 parser.add_argument('--num_epochs', type=int, default=100)
@@ -220,16 +221,16 @@ class Encoder(nn.Module):
             nn.Conv1d(hidden_channels, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(),
             # nn.MaxPool1d(kernel_size=2, stride=2),
-            nn.Conv1d(hidden_channels*2, hidden_channels*4, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
+            # nn.Conv1d(hidden_channels*2, hidden_channels*4, kernel_size=kernel_size, stride=stride, padding=padding),
+            # nn.ReLU(),
             # nn.MaxPool1d(kernel_size=2, stride=2),
             nn.Flatten(),
             # nn.Linear(hidden_channels * 2 * self.output_len, hidden_channels * 2 * self.output_len),
             # nn.ReLU()
         )
         
-        self.fc_mu = nn.Linear(hidden_channels * 4 * self.output_len, latent_dim)
-        self.fc_logvar = nn.Linear(hidden_channels * 4 * self.output_len, latent_dim)
+        self.fc_mu = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
+        self.fc_logvar = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
         
     def forward(self, x):
         x = self.encoder(x)
@@ -242,28 +243,23 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         self.hidden_channels = hidden_channels
         self.output_len = output_len
-        # self.fc_z = nn.Linear(latent_dim, hidden_channels * 2 * self.output_len)
-        self.fc_z = nn.Sequential(
-            nn.Linear(latent_dim, hidden_channels * 4 * self.output_len))
-            # # nn.ReLU(),
-            # nn.Linear(hidden_channels * 2 * self.output_len, hidden_channels * 2 * self.output_len),
-            # nn.ReLU())
+        self.fc_z = nn.Linear(latent_dim, hidden_channels * 2 * self.output_len)
+        # self.fc_z = nn.Linear(latent_dim, hidden_channels * 4 * self.output_len)
         self.decoder = nn.Sequential(
             # nn.Upsample(scale_factor=2, mode='nearest'),
-            nn.ConvTranspose1d(hidden_channels*4, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
+            # nn.ConvTranspose1d(hidden_channels*4, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
+            # nn.ReLU(),
             # nn.Upsample(scale_factor=2, mode='nearest'),
             nn.ConvTranspose1d(hidden_channels*2, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding),
             nn.ReLU(),
             # nn.Upsample(scale_factor=2, mode='nearest'),
             nn.ConvTranspose1d(hidden_channels, input_channels, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
             nn.Softmax(dim = 1)
         )
 
     def forward(self, z):
         z = self.fc_z(z)
-        z = z.view(-1, self.hidden_channels * 4, self.output_len)
+        z = z.view(-1, self.hidden_channels * 2, self.output_len)
         x_hat = self.decoder(z)
         return x_hat
 
@@ -399,13 +395,13 @@ for epoch in range(num_epochs):
     val_losses.append(val_avg_loss)
 
     cnn_data_label = (train_losses, val_losses, "cVAE")
-    val_acc = (val_accs, "cVAE")
-    val_aa_acc = (val_aa_accs, "cVAE")
-    val_gap_acc = (val_gap_accs, "cVAE")
+    val_acc_plotdata = (val_accs, "cVAE")
+    val_aa_acc_plotdata = (val_aa_accs, "cVAE")
+    val_gap_acc_plotdata = (val_gap_accs, "cVAE")
     quick_loss_plot([cnn_data_label], args.plots_path + "/" + args.job_id + "_loss", "CE + KLD")
-    quick_acc_plot([val_acc], args.plots_path + "/" + args.job_id + "_val_acc")
-    quick_acc_plot([val_aa_acc], args.plots_path + "/" + args.job_id + "_val_acc_aa")
-    quick_acc_plot([val_gap_acc], args.plots_path + "/" + args.job_id + "_val_acc_gap")
+    quick_acc_plot([val_acc_plotdata], args.plots_path + "/" + args.job_id + "_val_acc")
+    quick_acc_plot([val_aa_acc_plotdata], args.plots_path + "/" + args.job_id + "_val_acc_aa")
+    quick_acc_plot([val_gap_acc_plotdata], args.plots_path + "/" + args.job_id + "_val_acc_gap")
 
     if val_avg_loss < best_val_loss:
         best_val_loss = val_avg_loss
