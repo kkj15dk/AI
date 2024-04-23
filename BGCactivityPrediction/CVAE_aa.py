@@ -16,9 +16,9 @@ import argparse
 parser = argparse.ArgumentParser(description='Train the cVAE')
 
 # Declare arguments
-# parser.add_argument('--test', type=bool, required=False, default=True)
-parser.add_argument('--test', type=bool, required=False, default=False)
-parser.add_argument('--job_id', type=str, required=False, default='test4')
+parser.add_argument('--test', type=bool, required=False, default=True)
+# parser.add_argument('--test', type=bool, required=False, default=False)
+parser.add_argument('--job_id', type=str, required=False, default='test_general_pooling_encoder')
 parser.add_argument('--models_path', type=str, required=False, default='Models')
 parser.add_argument('--plots_path', type=str, required=False, default='Plots')
 parser.add_argument('--existing_parameters', required=False, default=None)
@@ -29,6 +29,8 @@ parser.add_argument('--latent_dim', type=int, default=10)
 parser.add_argument('--kernel_size', type=int, default=11)
 parser.add_argument('--stride', type=int, default=1)
 parser.add_argument('--padding', type=int, default=5)
+parser.add_argument('--layers', type=int, default=2)
+parser.add_argument('--pooling', type=bool, default=False)
 
 parser.add_argument('--lr', type=float, default=0.0001)
 parser.add_argument('--scheduler_step', type=int, default=5)
@@ -59,6 +61,8 @@ latent_dim = args.latent_dim
 kernel_size = args.kernel_size
 stride = args.stride
 padding = args.padding
+layers = args.layers
+pooling = args.pooling
 
 lr = args.lr
 scheduler_step = args.scheduler_step
@@ -210,84 +214,6 @@ print("Train_dl:", len(train_dl))
 print("Val_dl:", len(val_dl))
 print("Test_dl:", len(test_dl))
 
-class Encoder(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, output_len):
-        super(Encoder, self).__init__()
-        self.output_len = output_len
-        self.encoder = nn.Sequential(
-            nn.Conv1d(input_channels, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
-            # nn.MaxPool1d(kernel_size=2, stride=2),
-            nn.Conv1d(hidden_channels, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
-            # nn.MaxPool1d(kernel_size=2, stride=2),
-            # nn.Conv1d(hidden_channels*2, hidden_channels*4, kernel_size=kernel_size, stride=stride, padding=padding),
-            # nn.ReLU(),
-            # nn.MaxPool1d(kernel_size=2, stride=2),
-            nn.Flatten(),
-            # nn.Linear(hidden_channels * 2 * self.output_len, hidden_channels * 2 * self.output_len),
-            # nn.ReLU()
-        )
-        
-        self.fc_mu = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
-        self.fc_logvar = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
-        
-    def forward(self, x):
-        x = self.encoder(x)
-        mu = self.fc_mu(x)
-        logvar = self.fc_logvar(x)
-        return mu, logvar
-
-class Decoder(nn.Module):
-    def __init__(self, hidden_channels, input_channels, kernel_size, stride, padding, output_len):
-        super(Decoder, self).__init__()
-        self.hidden_channels = hidden_channels
-        self.output_len = output_len
-        self.fc_z = nn.Linear(latent_dim, hidden_channels * 2 * self.output_len)
-        # self.fc_z = nn.Linear(latent_dim, hidden_channels * 4 * self.output_len)
-        self.decoder = nn.Sequential(
-            # nn.Upsample(scale_factor=2, mode='nearest'),
-            # nn.ConvTranspose1d(hidden_channels*4, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
-            # nn.ReLU(),
-            # nn.Upsample(scale_factor=2, mode='nearest'),
-            nn.ConvTranspose1d(hidden_channels*2, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
-            # nn.Upsample(scale_factor=2, mode='nearest'),
-            nn.ConvTranspose1d(hidden_channels, input_channels, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.Softmax(dim = 1)
-        )
-
-    def forward(self, z):
-        z = self.fc_z(z)
-        z = z.view(-1, self.hidden_channels * 2, self.output_len)
-        x_hat = self.decoder(z)
-        return x_hat
-
-class ConvolutionalVAE(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len):
-        super(ConvolutionalVAE, self).__init__()
-
-        # Define the output lengths between different layers of the model. hopefully this will make the model easier to manipulate later on
-        self.max_len = max_len
-        self.output_len = int(((self.max_len - kernel_size + 2*padding) / stride + 1) ) # Can give weird values if stride doesn't divide the length
-        
-        print("Output length: ", self.output_len)
-        # Encoder
-        self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, self.output_len)
-        # Decoder
-        self.decoder = Decoder(hidden_channels, input_channels, kernel_size, stride, padding, self.output_len)
-
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps*std
-    
-    def forward(self, x):
-        mu, logvar = self.encoder(x)
-        z = self.reparameterize(mu, logvar)
-        x_hat = self.decoder(z)
-        return x_hat, mu, logvar
-
 def train_loop(device, train_dl, model, loss_fn, optimizer):
     model.train()
     train_loss = 0
@@ -351,14 +277,16 @@ def val_loop(device, val_dl, model, loss_fn):
         return avg_val_loss, avg_val_acc, val_aa_acc, val_gap_acc
 
 # Instantiate the model
-model = ConvolutionalVAE(input_channels,
-                         hidden_channels,
-                         latent_dim,
-                         kernel_size,
-                         stride,
-                         padding,
-                         max_len
-                         ).to(DEVICE)
+model = cVAE(input_channels,
+               hidden_channels,
+               latent_dim,
+               kernel_size,
+               stride,
+               padding,
+               max_len,
+               layers,
+               pooling,
+               ).to(DEVICE)
 if START_FROM_EXISTING:
     model.load_state_dict(torch.load(f"{args.models_path}/{args.existing_parameters}.pth"))
 

@@ -9,7 +9,7 @@ def random_aa_seq(n):
         seq = "M"
         for j in range(3):
             seq += random.choice("ACDEFGHIKLMNPQRSTVWY-")
-        seq += "HINQ"
+        seq += "HINQA"
         seq += random.choice(["----","ACDE"])
         for j in range(2):
             seq += random.choice("ACDEFGHIKLMNPQRSTVWY-")
