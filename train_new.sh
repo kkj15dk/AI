@@ -2,7 +2,6 @@
 ### General options 
 ### -- specify queue -- 
 #BSUB -q gpuv100
-#BSUB -R "select[gpu32gb]"
 ### -- set the job Name -- 
 #BSUB -J t_new
 ### -- ask for number of cores (default: 4) -- 
@@ -30,4 +29,4 @@ module load python3/3.10.13
 source torch-venv/bin/activate
 
 # here follow the commands you want to execute
-python -u AI/BGCactivityPrediction/CVAE_aa.py --job_id=$LSB_JOBID --lr=0.0001 --layers=4 --pooling=True
+python -u AI/BGCactivityPrediction/CVAE_aa.py --job_id=$LSB_JOBID --lr=0.0001 --layers=4 --pooling=True --pooling_window=3

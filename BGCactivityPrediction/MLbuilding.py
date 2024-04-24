@@ -448,10 +448,7 @@ class Decoder(nn.Module):
         self.hidden_channels = hidden_channels
         self.dec_ref = []
         for i in range(layers):
-            if i == 0:
-                pass
-                # self.dec_ref.append(nn.Softmax(dim = 1)) # Softmax not needed for CrossEntropyLoss, it is built in
-            else:
+            if i != 0:
                 self.dec_ref.append(nn.ReLU())
             self.dec_ref.append(nn.ConvTranspose1d(self.hidden_channels, self.input_channels, kernel_size=kernel_size, stride=stride, padding=padding))
             if pooling:
@@ -474,14 +471,14 @@ class Decoder(nn.Module):
         return x_hat
     
 class cVAE(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling, pooling_window):
+    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling, pooling_window, embedding):
         super(cVAE, self).__init__()
         # Define the output lengths between different layers of the model.
         self.max_len = max_len
         # Encoder
-        self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window)
+        self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window, embedding)
         # Decoder
-        self.decoder = Decoder(hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window)
+        self.decoder = Decoder(hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window, embedding)
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
