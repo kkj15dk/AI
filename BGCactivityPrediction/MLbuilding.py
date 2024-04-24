@@ -401,13 +401,17 @@ class cVAE_2(nn.Module):
     
 
 class Encoder(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window):
+    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window, embedding, embedding_dim):
         super(Encoder, self).__init__()
+        self.embedding = embedding
         self.enc_ref = []
         self.max_len = max_len
         self.input_channels = input_channels
         self.hidden_channels = hidden_channels
         for i in range(layers):
+            if embedding:
+                self.enc_ref.append(nn.Embedding(self.input_channels, embedding_dim))
+                self.input_channels = embedding_dim
             self.enc_ref.append(nn.Conv1d(self.input_channels, self.hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding))
             self.enc_ref.append(nn.ReLU())
             if pooling:
@@ -428,6 +432,8 @@ class Encoder(nn.Module):
         self.fc_logvar = nn.Linear(self.input_channels * self.max_len, latent_dim)
         
     def forward(self, x):
+        if self.embedding:
+            x = x.argmax(dim=1)
         x = self.encoder(x)
         mu = self.fc_mu(x)
         logvar = self.fc_logvar(x)
