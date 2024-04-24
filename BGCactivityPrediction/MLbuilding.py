@@ -462,10 +462,10 @@ class Decoder(nn.Module):
         self.input_channels = input_channels
         self.hidden_channels = hidden_channels
         self.dec_ref = []
+        if embedding:
+            self.dec_ref.append(nn.Conv1d(embedding_dim, self.input_channels, kernel_size = 1, stride = 1, padding = 0))
+            self.input_channels = embedding_dim
         for i in range(layers):
-            if embedding:
-                self.dec_ref.append(nn.Conv1d(embedding_dim, self.input_channels, kernel_size = 1, stride = 1, padding = 0))
-                self.input_channels = embedding_dim
             if i != 0:
                 self.dec_ref.append(nn.ReLU())
             self.dec_ref.append(nn.ConvTranspose1d(self.hidden_channels, self.input_channels, kernel_size=kernel_size, stride=stride, padding=padding))
