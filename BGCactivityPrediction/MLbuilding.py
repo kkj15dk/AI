@@ -398,7 +398,22 @@ class cVAE_2(nn.Module):
         z = self.reparameterize(mu, logvar)
         x_hat = self.decoder(z)
         return x_hat, mu, logvar
-    
+
+class Permute(nn.Module):
+    def __init__(self, *dims):
+        super(Permute, self).__init__()
+        self.dims = dims
+
+    def forward(self, x):
+        return x.permute(self.dims)
+
+class Argmax(nn.Module):
+    def __init__(self, dim):
+        super(Argmax, self).__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        return x.argmax(dim = self.dim)
 
 class Encoder(nn.Module):
     def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window, embedding, embedding_dim):
@@ -410,7 +425,9 @@ class Encoder(nn.Module):
         self.hidden_channels = hidden_channels
         for i in range(layers):
             if embedding:
+                self.enc_ref.append(Argmax(1))
                 self.enc_ref.append(nn.Embedding(self.input_channels, embedding_dim))
+                self.enc_ref.append(Permute(0, 2, 1))
                 self.input_channels = embedding_dim
             self.enc_ref.append(nn.Conv1d(self.input_channels, self.hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding))
             self.enc_ref.append(nn.ReLU())
@@ -432,15 +449,13 @@ class Encoder(nn.Module):
         self.fc_logvar = nn.Linear(self.input_channels * self.max_len, latent_dim)
         
     def forward(self, x):
-        if self.embedding:
-            x = x.argmax(dim=1)
         x = self.encoder(x)
         mu = self.fc_mu(x)
         logvar = self.fc_logvar(x)
         return mu, logvar
 
 class Decoder(nn.Module):
-    def __init__(self, hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window):
+    def __init__(self, hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window, embedding, embedding_dim):
         super(Decoder, self).__init__()
         self.hidden_channels = hidden_channels
         self.max_len = max_len
@@ -448,6 +463,9 @@ class Decoder(nn.Module):
         self.hidden_channels = hidden_channels
         self.dec_ref = []
         for i in range(layers):
+            if embedding:
+                self.dec_ref.append(nn.Conv1d(embedding_dim, self.input_channels, kernel_size = 1, stride = 1, padding = 0))
+                self.input_channels = embedding_dim
             if i != 0:
                 self.dec_ref.append(nn.ReLU())
             self.dec_ref.append(nn.ConvTranspose1d(self.hidden_channels, self.input_channels, kernel_size=kernel_size, stride=stride, padding=padding))
@@ -471,14 +489,14 @@ class Decoder(nn.Module):
         return x_hat
     
 class cVAE(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling, pooling_window, embedding):
+    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling, pooling_window, embedding, embedding_dim):
         super(cVAE, self).__init__()
         # Define the output lengths between different layers of the model.
         self.max_len = max_len
         # Encoder
-        self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window, embedding)
+        self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window, embedding, embedding_dim)
         # Decoder
-        self.decoder = Decoder(hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window, embedding)
+        self.decoder = Decoder(hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window, embedding, embedding_dim)
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
