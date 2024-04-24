@@ -423,12 +423,12 @@ class Encoder(nn.Module):
         self.max_len = max_len
         self.input_channels = input_channels
         self.hidden_channels = hidden_channels
+        if embedding:
+            self.enc_ref.append(Argmax(1))
+            self.enc_ref.append(nn.Embedding(self.input_channels, embedding_dim))
+            self.enc_ref.append(Permute(0, 2, 1))
+            self.input_channels = embedding_dim
         for i in range(layers):
-            if embedding:
-                self.enc_ref.append(Argmax(1))
-                self.enc_ref.append(nn.Embedding(self.input_channels, embedding_dim))
-                self.enc_ref.append(Permute(0, 2, 1))
-                self.input_channels = embedding_dim
             self.enc_ref.append(nn.Conv1d(self.input_channels, self.hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding))
             self.enc_ref.append(nn.ReLU())
             if pooling:
