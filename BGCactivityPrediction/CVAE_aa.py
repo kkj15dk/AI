@@ -3,11 +3,11 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import StepLR
 import torch.nn as nn
 import torch.functional as F
-from MLbuilding import *
-from DNAconversion import *
 from sklearn.model_selection import train_test_split
+from DNAconversion import *
+from MLbuilding import *
 from MLvisualisation import *
-from aa_test import *
+from MLtesting import *
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning) # To remove a warning from logomaker in MLvisualisation.py
 import argparse
@@ -16,9 +16,9 @@ import argparse
 parser = argparse.ArgumentParser(description='Train the cVAE')
 
 # Declare arguments
-parser.add_argument('--test', type=bool, required=False, default=False)
-# parser.add_argument('--test', type=bool, required=False, default=True)
-parser.add_argument('--job_id', type=str, required=False, default='test_general_pooling_encoder')
+# parser.add_argument('--test', type=bool, required=False, default=False)
+parser.add_argument('--test', type=bool, required=False, default=True)
+parser.add_argument('--job_id', type=str, required=False, default='test_unaligned_addedRelU_randompad_test')
 parser.add_argument('--models_path', type=str, required=False, default='Models')
 parser.add_argument('--plots_path', type=str, required=False, default='Plots')
 parser.add_argument('--existing_parameters', required=False, default=None)
@@ -26,25 +26,25 @@ parser.add_argument('--batch_size', type=int, default=10)
 parser.add_argument('--input_channels', type=int, default=22)
 parser.add_argument('--hidden_channels', type=int, default=32)
 parser.add_argument('--latent_dim', type=int, default=10)
-parser.add_argument('--kernel_size', type=int, default=5)
+parser.add_argument('--kernel_size', type=int, default=11)
 parser.add_argument('--stride', type=int, default=1)
-parser.add_argument('--padding', type=int, default=2)
-parser.add_argument('--layers', type=int, default=4)
+parser.add_argument('--padding', type=int, default=5)
+parser.add_argument('--layers', type=int, default=2)
 parser.add_argument('--pooling', type=bool, default=True)
 parser.add_argument('--pooling_window', type=int, default=3)
 parser.add_argument('--embedding', type=bool, default=True)
-parser.add_argument('--embedding_dim', type=int, default=20)
+parser.add_argument('--embedding_dim', type=int, default=10)
 
 parser.add_argument('--lr', type=float, default=0.0001)
-parser.add_argument('--scheduler_step', type=int, default=10)
-parser.add_argument('--gamma', type=float, default=0.2)
+parser.add_argument('--scheduler_step', type=int, default=5)
+parser.add_argument('--gamma', type=float, default=1)
 parser.add_argument('--early_stopping_patience', type=int, default=10)
 parser.add_argument('--gap_weight', type=float, default=1)
 parser.add_argument('--num_epochs', type=int, default=80)
 parser.add_argument('--n_seqs', type=int, default=10000)
 parser.add_argument('--random_seed', type=int, default=42)
-# parser.add_argument('--aa_file', type=str, default="new4_PKSs.fa")
-parser.add_argument('--aa_file', type=str, default="clustalo_alignment.aln")
+parser.add_argument('--aa_file', type=str, default="new4_PKSs.fa")
+# parser.add_argument('--aa_file', type=str, default="clustalo_alignment.aln")
 
 args = parser.parse_args()
 for arg in vars(args):
@@ -113,42 +113,6 @@ class MyIterDataset(IterableDataset):
     def __len__(self):
         return self.len
 
-def pad_to_length(tensor, length, padding_value=0):
-    """
-    Pads or truncates a tensor to a specified length with a given padding value.
-
-    Args:
-        tensor (torch.Tensor): The input tensor to be padded.
-        length (int): The desired length of the tensor after padding.
-        padding_value (int, optional): The value used for padding. Defaults to 0.
-
-    Returns:
-        tuple: A tuple containing the padded tensor and a mask tensor indicating the padded regions.
-    """
-    if tensor.shape[1] < length:
-        tensor = F.pad(tensor, (0, length - tensor.shape[1]), value=padding_value)
-    else:
-        tensor = tensor[:, :length]
-    return tensor
-
-def pad_string(string, length, padding_value='-'):
-    """
-    Pads or truncates a string to a specified length with a given padding value.
-
-    Args:
-        string (str): The input string to be padded.
-        length (int): The desired length of the string after padding.
-        padding_value (str, optional): The character used for padding. Defaults to '-'.
-
-    Returns:
-        str: The padded string.
-    """
-    if len(string) < length:
-        string = string.ljust(length, padding_value)
-    else:
-        string = string[:length]
-    return string
-
 def OHEAAgen(seqs):
     # yield from record_gen
     for seq in seqs:
@@ -206,7 +170,8 @@ seqs = list(set(train_seq_aa))
 
 # comment this out if you want to use random sequences
 if args.test:
-    seqs = random_aa_seq(n_seqs)
+    # seqs = random_aa_seq(n_seqs)
+    seqs = random_aa_seq_unaligned(n_seqs)
     print(seqs[0])
     aa_OHE = one_hot_encode(seqs[0], True)
     print(hot_one_encode(aa_OHE, True))
@@ -382,61 +347,5 @@ for epoch in range(num_epochs):
     # Print the average loss for the epoch
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_avg_loss:.4f} | Val Loss: {val_avg_loss:.4f} | Val Acc: {val_avg_acc:.4f} | Val aa Acc: {val_aa_acc:.4f} | Val gap Acc: {val_gap_acc:.4f}| LR: {learning_rate:g}")
 
-# Load the state of the best model
-state_dict = torch.load(best_model_path)
-
-# Apply the state to your model
-model.load_state_dict(state_dict)
-
-# Set the model to evaluation mode
-model.eval()
-
-# Generate a random latent vector
-latent_vector = torch.randn(1, latent_dim).to(DEVICE)  # Assuming latent_dim is the dimension of the latent space
-
-# Pass the latent vector through the decoder
-with torch.no_grad():
-    reconstructed_output = model.decoder(latent_vector)
-
-# Convert the reconstructed output to the desired format or representation
-sample = reconstructed_output.squeeze().cpu().numpy()  # Assuming the output is a tensor
-
-# Convert the output to binary form
-sample = sample.argmax(axis=0)
-sample = F.one_hot(torch.tensor(sample), num_classes=22).float().numpy().T
-
-def remove_common_gaps(seq1, seq2):
-    new_seq1 = []
-    new_seq2 = []
-
-    for aa1, aa2 in zip(seq1, seq2):
-        if aa1 != '-' or aa2 != '-':
-            new_seq1.append(aa1)
-            new_seq2.append(aa2)
-
-    return ''.join(new_seq1), ''.join(new_seq2)
-
-# Convert the one-hot encoded sequence to a string
-sample_seq = hot_one_encode(sample, True)
-aaseq = seqs[random.randint(0, len(seqs) - 1)]
-
-# Reconstruct the random input
-aa_OHE = torch.tensor(one_hot_encode(aaseq, True)).float().to(DEVICE)
-aa_OHE = pad_to_length(aa_OHE, max_len)
-
-with torch.no_grad():
-    recon_aaseq_OHE = model.decoder(model.encoder(aa_OHE.unsqueeze(0))[0])
-
-recon_aaseq = recon_aaseq_OHE.squeeze().cpu().numpy()
-# Convert the output to binary form
-recon_aaseq = recon_aaseq.argmax(axis=0)
-recon_aaseq = F.one_hot(torch.tensor(recon_aaseq), num_classes=22).float().numpy().T
-recon_aaseq = hot_one_encode(recon_aaseq, True)
-
-recon_aaseq_wogaps, aaseq_wogaps = remove_common_gaps(recon_aaseq, aaseq)
-
-print('Random sampl: ' + sample_seq)
-print('Random input: ' + aaseq)
-print('ReconR input: ' + recon_aaseq)
-print('Random input: ' + aaseq_wogaps)
-print('ReconR input: ' + recon_aaseq_wogaps)
+# Test the best model
+test_model(model, best_model_path, seqs, latent_dim, max_len, DEVICE)

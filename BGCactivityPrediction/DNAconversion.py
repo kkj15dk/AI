@@ -1,6 +1,8 @@
 from Bio import SeqIO
 import numpy as np
 import os
+import random
+import torch.nn.functional as F
 
 def one_hot_encode(seq, aa=False):
     """
@@ -111,6 +113,120 @@ def filter_fasta(input_file, output_file, min_length=None, max_length=None):
             sequences = (record for record in sequences if len(record.seq) < max_length)
 
         SeqIO.write(sequences, output_handle, "fasta")
+
+def pad_to_length(tensor, length, padding_value=0):
+    """
+    Pads or truncates a tensor to a specified length with a given padding value.
+
+    Args:
+        tensor (torch.Tensor): The input tensor to be padded.
+        length (int): The desired length of the tensor after padding.
+        padding_value (int, optional): The value used for padding. Defaults to 0.
+
+    Returns:
+        tuple: A tuple containing the padded tensor and a mask tensor indicating the padded regions.
+    """
+    if tensor.shape[1] < length:
+        tensor = F.pad(tensor, (0, length - tensor.shape[1]), value=padding_value)
+    else:
+        tensor = tensor[:, :length]
+    return tensor
+
+def pad_string_right(string, length, padding_value='-'):
+    """
+    Pads or truncates a string to a specified length with a given padding value.
+
+    Args:
+        string (str): The input string to be padded.
+        length (int): The desired length of the string after padding.
+        padding_value (str, optional): The character used for padding. Defaults to '-'.
+
+    Returns:
+        str: The padded string.
+    """
+    if len(string) < length:
+        string = string.ljust(length, padding_value)
+    else:
+        string = string[:length]
+    return string
+
+def pad_string(string, length, padding_value='-'):
+    """
+    Pads or truncates a string to a specified length with a given padding value.
+
+    Args:
+        string (str): The input string to be padded.
+        length (int): The desired length of the string after padding.
+        padding_value (str, optional): The character used for padding. Defaults to '-'.
+
+    Returns:
+        str: The padded string.
+    """
+    if len(string) < length:
+        rand_len = random.randint(len(string), length)
+        left_pad = rand_len - len(string)
+        right_pad = length - rand_len
+        string = padding_value * left_pad + string + padding_value * right_pad
+    else:
+        string = string[:length]
+    return string
+
+
+# Description: Generate random amino acid sequences for testing
+def random_aa_seq(n):
+    lsseq = []
+    for i in range(n):
+        # Generate a random aa sequence
+        seq = "M"
+        for j in range(3):
+            seq += random.choice("ACDEFGHIKLMNPQRSTVWY-")
+        seq += "HINQA"
+        seq += random.choice(["----","ACDE"])
+        for j in range(2):
+            seq += random.choice("ACDEFGHIKLMNPQRSTVWY-")
+        seq += random.choice(["----","FGHI"])
+        for j in range(2):
+            seq += random.choice("ACDEFGHIKLMNPQRSTVWY-")
+        seq += random.choice(["----","KLMN"])
+        for j in range(3):
+            seq += random.choice("ACDEFGHIKLMNPQRSTVWY-")
+        seq += random.choice(["----", "PQRS"])
+        for j in range(4):
+            seq += random.choice("ACDEFGHIKLMNPQRSTVWY-")
+        seq += random.choice(["----", "TVWY"])
+        seq += "*"
+        # Print the sequence
+        # print(seq)
+        lsseq.append(seq)
+    return lsseq
+
+def random_aa_seq_unaligned(n):
+    lsseq = []
+    for i in range(n):
+        # Generate a random aa sequence
+        seq = "M"
+        for j in range(3):
+            seq += random.choice("ACDEFGHIKLMNPQRSTVWY")
+        seq += "HINQA"
+        seq += random.choice(["","ACDE"])
+        for j in range(2):
+            seq += random.choice("ACDEFGHIKLMNPQRSTVWY")
+        seq += random.choice(["","FGHI"])
+        for j in range(2):
+            seq += random.choice("ACDEFGHIKLMNPQRSTVWY")
+        seq += random.choice(["","KLMN"])
+        for j in range(3):
+            seq += random.choice("ACDEFGHIKLMNPQRSTVWY")
+        seq += random.choice(["", "PQRS"])
+        for j in range(4):
+            seq += random.choice("ACDEFGHIKLMNPQRSTVWY")
+        seq += random.choice(["", "TVWY"])
+        seq += "*"
+        # Print the sequence
+        # print(seq)
+        lsseq.append(seq)
+    return lsseq
+
 
 # Usage
 if __name__ == "__main__":

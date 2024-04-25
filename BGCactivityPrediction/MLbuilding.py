@@ -5,7 +5,8 @@ from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 import random
 import numpy as np
-from DNAconversion import one_hot_encode
+from DNAconversion import one_hot_encode, hot_one_encode
+from Bio import SeqIO
 
 # Set a random seed in a bunch of different places
 def set_seed(seed: int = 42) -> None:
@@ -260,8 +261,8 @@ class Encoder(nn.Module):
             nn.Flatten()
         )
 
-        print("Latent Max length: ", self.max_len)
-        print("Latent Hidden channels: ", self.hidden_channels)
+        print("Latent sequence length: ", self.max_len)
+        print("Latent hidden channels: ", self.input_channels)
         print("Encoder: ", self.encoder)
         
         self.fc_mu = nn.Linear(self.input_channels * self.max_len, latent_dim)
@@ -283,10 +284,11 @@ class Decoder(nn.Module):
         self.dec_ref = []
         if embedding:
             self.dec_ref.append(nn.Conv1d(embedding_dim, self.input_channels, kernel_size = 1, stride = 1, padding = 0))
+            # self.dec_ref.append(nn.ReLU()) # Im not sure if this ReLU should be there or not. The model seems to improve by 1 %-point when it is absent.
             self.input_channels = embedding_dim
         for i in range(layers):
             if i != 0:
-                self.dec_ref.append(nn.ReLU()) # Im not sure if this ReLU should be there or not
+                self.dec_ref.append(nn.ReLU())
             self.dec_ref.append(nn.ConvTranspose1d(self.hidden_channels, self.input_channels, kernel_size=kernel_size, stride=stride, padding=padding))
             if pooling:
                 self.dec_ref.append(nn.Upsample(size = self.max_len, mode='nearest'))
