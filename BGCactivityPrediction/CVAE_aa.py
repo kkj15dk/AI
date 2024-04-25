@@ -16,22 +16,22 @@ import argparse
 parser = argparse.ArgumentParser(description='Train the cVAE')
 
 # Declare arguments
-# parser.add_argument('--test', type=bool, required=False, default=False)
-parser.add_argument('--test', type=bool, required=False, default=True)
-parser.add_argument('--job_id', type=str, required=False, default='test_general_pooling_encoder')
+parser.add_argument('--test', type=bool, required=False, default=False)
+# parser.add_argument('--test', type=bool, required=False, default=True)
+parser.add_argument('--job_id', type=str, required=False, default='test_unaligned')
 parser.add_argument('--models_path', type=str, required=False, default='Models')
 parser.add_argument('--plots_path', type=str, required=False, default='Plots')
 parser.add_argument('--existing_parameters', required=False, default=None)
 parser.add_argument('--batch_size', type=int, default=10)
 parser.add_argument('--input_channels', type=int, default=22)
-parser.add_argument('--hidden_channels', type=int, default=256)
+parser.add_argument('--hidden_channels', type=int, default=32)
 parser.add_argument('--latent_dim', type=int, default=10)
 parser.add_argument('--kernel_size', type=int, default=11)
 parser.add_argument('--stride', type=int, default=1)
 parser.add_argument('--padding', type=int, default=5)
-parser.add_argument('--layers', type=int, default=1)
+parser.add_argument('--layers', type=int, default=2)
 parser.add_argument('--pooling', type=bool, default=True)
-parser.add_argument('--pooling_window', type=int, default=2)
+parser.add_argument('--pooling_window', type=int, default=3)
 parser.add_argument('--embedding', type=bool, default=True)
 parser.add_argument('--embedding_dim', type=int, default=10)
 
@@ -43,6 +43,8 @@ parser.add_argument('--gap_weight', type=float, default=1)
 parser.add_argument('--num_epochs', type=int, default=80)
 parser.add_argument('--n_seqs', type=int, default=10000)
 parser.add_argument('--random_seed', type=int, default=42)
+# parser.add_argument('--aa_file', type=str, default="new4_PKSs.fa")
+parser.add_argument('--aa_file', type=str, default="clustalo_alignment.aln")
 
 args = parser.parse_args()
 for arg in vars(args):
@@ -78,7 +80,8 @@ gap_weight = args.gap_weight
 num_epochs = args.num_epochs
 n_seqs = args.n_seqs
 
-# Set the random seed
+# Set the random seed and file
+aa_file = args.aa_file
 random_seed = args.random_seed
 set_seed(random_seed)
 
@@ -128,6 +131,24 @@ def pad_to_length(tensor, length, padding_value=0):
         tensor = tensor[:, :length]
     return tensor
 
+def pad_string(string, length, padding_value='-'):
+    """
+    Pads or truncates a string to a specified length with a given padding value.
+
+    Args:
+        string (str): The input string to be padded.
+        length (int): The desired length of the string after padding.
+        padding_value (str, optional): The character used for padding. Defaults to '-'.
+
+    Returns:
+        str: The padded string.
+    """
+    if len(string) < length:
+        string = string.ljust(length, padding_value)
+    else:
+        string = string[:length]
+    return string
+
 def OHEAAgen(seqs):
     # yield from record_gen
     for seq in seqs:
@@ -173,7 +194,6 @@ def loss_fn(outputs, inputs, mu, logvar, weight = CEweights):
     return CE + KLD
 
 # Load the data
-aa_file = "clustalo_alignment.aln"
 train_record_aa = [record for record in SeqIO.parse(aa_file, "fasta")]
 train_seq_aa = [str(record.seq) for record in train_record_aa]
 
@@ -192,8 +212,16 @@ if args.test:
     print(hot_one_encode(aa_OHE, True))
 
 max_len = max(len(seq) for seq in seqs)
+min_len = min(len(seq) for seq in seqs)
 print("Number of sequences in dataset:", len(seqs))
 print("Longest sequence in dataset:", max_len)
+print("Shortest sequence in dataset:", min_len)
+
+if min_len != max_len:
+    print("Not all sequences are the same length. Sequences will be padded to the length of the longest sequence.")
+    for i, seq in enumerate(seqs):
+        seqs[i] = pad_string(seq, max_len, "-")
+    print(seqs[0])
 
 # Shuffle the list
 np.random.shuffle(seqs)
