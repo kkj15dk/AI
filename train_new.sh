@@ -14,7 +14,7 @@
 ### -- specify amount of memory per core/slot -- 
 #BSUB -R "rusage[mem=1GB]"
 ### -- set walltime limit: hh:mm -- 
-#BSUB -W 24:00
+#BSUB -W 024:00
 ### -- send notification at start -- 
 #BSUB -B 
 ### -- send notification at completion -- 
@@ -30,4 +30,4 @@ module load python3/3.10.13
 source torch-venv/bin/activate
 
 # here follow the commands you want to execute
-python -u AI/BGCactivityPrediction/CVAE_aa.py --job_id=$LSB_JOBID --lr=0.0001 --layers=5 --pooling=True --pooling_window=3
+python -u AI/BGCactivityPrediction/CVAE_aa.py --job_id=$LSB_JOBID --lr=0.0001 --layers=2 --pooling=True --pooling_window=2 --aa_file=PKSs.fa

@@ -252,8 +252,9 @@ class Encoder(nn.Module):
             self.enc_ref.append(nn.Conv1d(self.input_channels, self.hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding))
             self.enc_ref.append(nn.ReLU())
             if pooling:
-                self.max_len = int(np.ceil(self.max_len/pooling_window))
-                self.enc_ref.append(nn.AdaptiveMaxPool1d(self.max_len))
+                if i % pool_conv_doublingtime == 0
+                    self.max_len = int(np.ceil(self.max_len/pooling_window))
+                    self.enc_ref.append(nn.AdaptiveMaxPool1d(self.max_len))
             self.input_channels = self.hidden_channels
             self.hidden_channels *= 2
         self.encoder = nn.Sequential(
@@ -291,9 +292,10 @@ class Decoder(nn.Module):
                 self.dec_ref.append(nn.ReLU())
             self.dec_ref.append(nn.ConvTranspose1d(self.hidden_channels, self.input_channels, kernel_size=kernel_size, stride=stride, padding=padding))
             if pooling:
-                self.dec_ref.append(nn.Upsample(size = self.max_len, mode='nearest'))
-                if i != layers - 1: # Don't double the length at the last layer, so that we can use the self.max_len value in the forward pass
-                    self.max_len = int(np.ceil(self.max_len/pooling_window)) # Upsampling the length. Using ceil! You could choose something different.
+                if i % pool_conv_doublingtime == 0
+                    self.dec_ref.append(nn.Upsample(size = self.max_len, mode='nearest'))
+                    if i != layers - 1: # Don't double the length at the last layer, so that we can use the self.max_len value in the forward pass
+                        self.max_len = int(np.ceil(self.max_len/pooling_window)) # Upsampling the length. Using ceil! You could choose something different.
             self.input_channels = self.hidden_channels
             self.hidden_channels *= 2
         self.dec_ref = self.dec_ref[::-1]
