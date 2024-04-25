@@ -13,3 +13,4 @@ clustalo
 filtered_*
 my_*
 .venv/
+Interproscan/*
