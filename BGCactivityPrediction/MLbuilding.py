@@ -268,7 +268,10 @@ class Encoder(nn.Module):
         )
 
         
-        self.fc_0 = nn.Linear(self.input_channels * self.max_len, inner_dim)
+        self.fc_0 = nn.Sequential(
+            nn.Linear(self.input_channels * self.max_len, inner_dim),
+            nn.ReLU()
+        )
 
         self.fc_mu = nn.Linear(inner_dim, latent_dim)
         self.fc_logvar = nn.Sequential(
@@ -320,8 +323,14 @@ class Decoder(nn.Module):
             *self.dec_ref
         )
 
-        self.fc_1 = nn.Linear(latent_dim, inner_dim)
-        self.fc_z = nn.Linear(inner_dim, self.input_channels * self.max_len)
+        self.fc_1 = nn.Sequential(
+            nn.Linear(latent_dim, inner_dim),
+            nn.ReLU()
+            )
+        self.fc_z = nn.Sequential(
+            nn.Linear(inner_dim, self.input_channels * self.max_len),
+            nn.ReLU()
+            )
 
         print("fc1: ", self.fc_1)
         print("fc_z: ", self.fc_z)
