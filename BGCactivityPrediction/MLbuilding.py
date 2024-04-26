@@ -312,14 +312,14 @@ class Decoder(nn.Module):
             if (i+1) % pool_doublingtime == 0:
                 if pooling:
                     self.dec_ref.append(nn.Upsample(size = self.max_len, mode=upsampling_method))
-                    if i != layers - 1: # Don't double the length at the last layer, so that we can use the self.max_len value in the forward pass
-                        self.max_len = int(np.ceil(self.max_len/pooling_window)) # Upsampling the length. Using ceil! You could choose something different.
+                    self.max_len = int(np.ceil(self.max_len/pooling_window)) # Upsampling the length. Using ceil! You could choose something different.
             if (i+1) % conv_doublingtime == 0:    
                 self.hidden_channels *= 2
         self.dec_ref = self.dec_ref[::-1]
         self.decoder = nn.Sequential(
             *self.dec_ref
         )
+
         self.fc_1 = nn.Linear(latent_dim, inner_dim)
         self.fc_z = nn.Linear(inner_dim, self.input_channels * self.max_len)
 
@@ -335,7 +335,7 @@ class Decoder(nn.Module):
         return x_hat
     
 class cVAE(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling, pooling_window, embedding, embedding_dim, pool_doublingtime, conv_doublingtime, pooling_method, upsampling_method, inner_dim = 2048):
+    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling, pooling_window, embedding, embedding_dim, pool_doublingtime, conv_doublingtime, pooling_method, upsampling_method, inner_dim = 512):
         super(cVAE, self).__init__()
         # Encoder
         self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window, embedding, embedding_dim, pool_doublingtime, conv_doublingtime, pooling_method, inner_dim)
