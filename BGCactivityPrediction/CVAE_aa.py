@@ -24,24 +24,28 @@ parser.add_argument('--plots_path', type=str, required=False, default='Plots')
 parser.add_argument('--existing_parameters', required=False, default=None)
 parser.add_argument('--batch_size', type=int, default=10)
 parser.add_argument('--input_channels', type=int, default=23)
-parser.add_argument('--hidden_channels', type=int, default=512)
-parser.add_argument('--latent_dim', type=int, default=100)
+parser.add_argument('--hidden_channels', type=int, default=32)
+parser.add_argument('--latent_dim', type=int, default=10)
 parser.add_argument('--kernel_size', type=int, default=5)
 parser.add_argument('--stride', type=int, default=1)
-parser.add_argument('--padding', type=int, default=2)
-parser.add_argument('--layers', type=int, default=8)
+parser.add_argument('--padding', type=int, default=0)
+parser.add_argument('--layers', type=int, default=3)
 parser.add_argument('--pooling', type=bool, default=True)
 parser.add_argument('--pooling_window', type=int, default=3)
+parser.add_argument('--pooling_method', type=str, choices=['max', 'avg'], default='avg')
+parser.add_argument('--upsampling_method', type=str, choices=['nearest', 'linear'], default='linear')
 parser.add_argument('--embedding', type=bool, default=True)
-parser.add_argument('--embedding_dim', type=int, default=24)
-parser.add_argument('--pool_conv_doublingtime', type=int, default=3)
+parser.add_argument('--embedding_dim', type=int, default=20)
+parser.add_argument('--pool_doublingtime', type=int, default=1)
+parser.add_argument('--conv_doublingtime', type=int, default=2)
+parser.add_argument('--activation_function', type=str, choices=['relu', 'leakyrelu', 'tanh', 'sigmoid', 'gelu'], default='relu')
 
 parser.add_argument('--lr', type=float, default=0.0001)
 parser.add_argument('--scheduler_step', type=int, default=10)
 parser.add_argument('--gamma', type=float, default=1)
 parser.add_argument('--early_stopping_patience', type=int, default=5)
 parser.add_argument('--gap_weight', type=float, default=1)
-parser.add_argument('--num_epochs', type=int, default=20)
+parser.add_argument('--num_epochs', type=int, default=2)
 parser.add_argument('--n_seqs', type=int, default=10000)
 parser.add_argument('--random_seed', type=int, default=42)
 parser.add_argument('--aa_file', type=str, default="new4_PKSs.fa")
@@ -72,7 +76,11 @@ pooling = args.pooling
 pooling_window = args.pooling_window
 embedding = args.embedding
 embedding_dim = args.embedding_dim
-pool_conv_doublingtime = args.pool_conv_doublingtime
+pool_doublingtime = args.pool_doublingtime
+conv_doublingtime = args.conv_doublingtime
+pooling_method = args.pooling_method
+upsampling_method = args.upsampling_method
+activation_function = args.activation_function # Not implemented yet
 
 lr = args.lr
 scheduler_step = args.scheduler_step
@@ -281,19 +289,22 @@ def val_loop(device, val_dl, model, loss_fn):
 
 # Instantiate the model
 model = cVAE(input_channels,
-               hidden_channels,
-               latent_dim,
-               kernel_size,
-               stride,
-               padding,
-               max_len,
-               layers,
-               pooling,
-               pooling_window,
-               embedding,
-               embedding_dim,
-               pool_conv_doublingtime
-               ).to(DEVICE)
+                hidden_channels,
+                latent_dim,
+                kernel_size,
+                stride,
+                padding,
+                max_len,
+                layers,
+                pooling,
+                pooling_window,
+                embedding,
+                embedding_dim,
+                pool_doublingtime, 
+                conv_doublingtime,
+                pooling_method,
+                upsampling_method
+                ).to(DEVICE)
 if START_FROM_EXISTING:
     model.load_state_dict(torch.load(f"{args.models_path}/{args.existing_parameters}.pth"))
 
