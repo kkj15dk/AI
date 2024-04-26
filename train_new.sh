@@ -30,4 +30,4 @@ module load python3/3.10.13
 source torch-venv/bin/activate
 
 # here follow the commands you want to execute
-python -u AI/BGCactivityPrediction/CVAE_aa.py --job_id=$LSB_JOBID --lr=0.0001 --layers=2 --pooling=True --pooling_window=2 --aa_file=PKSs.fa
+python -u AI/BGCactivityPrediction/CVAE_aa.py --job_id=$LSB_JOBID --aa_file=PKSs.fa
