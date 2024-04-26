@@ -236,7 +236,7 @@ class Argmax(nn.Module):
         return x.argmax(dim = self.dim)
 
 class Encoder(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window, embedding, embedding_dim):
+    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window, embedding, embedding_dim, pool_conv_doublingtime):
         super(Encoder, self).__init__()
         self.embedding = embedding
         self.enc_ref = []
@@ -251,12 +251,12 @@ class Encoder(nn.Module):
         for i in range(layers):
             self.enc_ref.append(nn.Conv1d(self.input_channels, self.hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding))
             self.enc_ref.append(nn.ReLU())
-            if pooling:
-                if i % pool_conv_doublingtime == 0
+            self.input_channels = self.hidden_channels
+            if (i+1) % pool_conv_doublingtime == 0: # Sorry for the nesting...
+                if pooling:
                     self.max_len = int(np.ceil(self.max_len/pooling_window))
                     self.enc_ref.append(nn.AdaptiveMaxPool1d(self.max_len))
-            self.input_channels = self.hidden_channels
-            self.hidden_channels *= 2
+                self.hidden_channels *= 2
         self.encoder = nn.Sequential(
             *self.enc_ref,
             nn.Flatten()
@@ -276,7 +276,7 @@ class Encoder(nn.Module):
         return mu, logvar
 
 class Decoder(nn.Module):
-    def __init__(self, hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window, embedding, embedding_dim):
+    def __init__(self, hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window, embedding, embedding_dim, pool_conv_doublingtime):
         super(Decoder, self).__init__()
         self.hidden_channels = hidden_channels
         self.max_len = max_len
@@ -291,13 +291,13 @@ class Decoder(nn.Module):
             if i != 0:
                 self.dec_ref.append(nn.ReLU())
             self.dec_ref.append(nn.ConvTranspose1d(self.hidden_channels, self.input_channels, kernel_size=kernel_size, stride=stride, padding=padding))
-            if pooling:
-                if i % pool_conv_doublingtime == 0
+            self.input_channels = self.hidden_channels
+            if (i+1) % pool_conv_doublingtime == 0:
+                if pooling:
                     self.dec_ref.append(nn.Upsample(size = self.max_len, mode='nearest'))
                     if i != layers - 1: # Don't double the length at the last layer, so that we can use the self.max_len value in the forward pass
                         self.max_len = int(np.ceil(self.max_len/pooling_window)) # Upsampling the length. Using ceil! You could choose something different.
-            self.input_channels = self.hidden_channels
-            self.hidden_channels *= 2
+                self.hidden_channels *= 2
         self.dec_ref = self.dec_ref[::-1]
         self.decoder = nn.Sequential(
             *self.dec_ref
@@ -312,14 +312,14 @@ class Decoder(nn.Module):
         return x_hat
     
 class cVAE(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling, pooling_window, embedding, embedding_dim):
+    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling, pooling_window, embedding, embedding_dim, pool_conv_doublingtime):
         super(cVAE, self).__init__()
         # Define the output lengths between different layers of the model.
         self.max_len = max_len
         # Encoder
-        self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window, embedding, embedding_dim)
+        self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window, embedding, embedding_dim, pool_conv_doublingtime)
         # Decoder
-        self.decoder = Decoder(hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window, embedding, embedding_dim)
+        self.decoder = Decoder(hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, layers, pooling, self.max_len, pooling_window, embedding, embedding_dim, pool_conv_doublingtime)
 
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)

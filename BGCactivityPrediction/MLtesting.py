@@ -17,13 +17,10 @@ def remove_common_gaps(seq1, seq2):
 
     return ''.join(new_seq1), ''.join(new_seq2)
 
-def test_model(model, best_model_path, seqs, latent_dim, samples=2):
+def test_model(best_model_path, seqs, latent_dim, DEVICE, samples=1):
         
     # Load the state of the best model
-    state_dict = torch.load(best_model_path)
-
-    # Initialize the model
-    model.load_state_dict(state_dict)
+    model = torch.load(best_model_path)
 
     model.to(DEVICE)
     # Set the model to evaluation mode
@@ -37,11 +34,12 @@ def test_model(model, best_model_path, seqs, latent_dim, samples=2):
             reconstructed_output = model.decoder(latent_vector)
 
         # Convert the reconstructed output to the desired format or representation
-        sample = reconstructed_output.squeeze().cpu().numpy()  # Assuming the output is a tensor
+        sample = reconstructed_output.squeeze().cpu().numpy()  # Assuming the output is a tensor of shape (num_classes, seq_len)
+        num_classes = sample.shape[0]
 
         # Convert the output to binary form
         sample = sample.argmax(axis=0)
-        sample = F.one_hot(torch.tensor(sample), num_classes=22).float().numpy().T
+        sample = F.one_hot(torch.tensor(sample), num_classes).float().numpy().T
 
         # Convert the one-hot encoded sequence to a string
         sample_seq = hot_one_encode(sample, True)
@@ -58,7 +56,7 @@ def test_model(model, best_model_path, seqs, latent_dim, samples=2):
         recon_aaseq = recon_aaseq_OHE.squeeze().cpu().numpy()
         # Convert the output to binary form
         recon_aaseq = recon_aaseq.argmax(axis=0)
-        recon_aaseq = F.one_hot(torch.tensor(recon_aaseq), num_classes=22).float().numpy().T
+        recon_aaseq = F.one_hot(torch.tensor(recon_aaseq), num_classes).float().numpy().T
         recon_aaseq = hot_one_encode(recon_aaseq, True)
 
         recon_aaseq_wogaps, aaseq_wogaps = remove_common_gaps(recon_aaseq, aaseq)
@@ -74,20 +72,20 @@ if __name__ == "__main__":
     # set the device
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Device set as {DEVICE}")
-    # Instantiate the model
-    model = cVAE(input_channels=22,
-                hidden_channels=32,
-                latent_dim=10,
-                kernel_size=11,
-                stride=1,
-                padding=5,
-                max_len=41,
-                layers=2,
-                pooling=True,
-                pooling_window=3,
-                embedding=True,
-                embedding_dim=10,
-                ).to(DEVICE)
+    # # Instantiate the model
+    # model = cVAE(input_channels=22,
+    #             hidden_channels=32,
+    #             latent_dim=10,
+    #             kernel_size=11,
+    #             stride=1,
+    #             padding=5,
+    #             max_len=41,
+    #             layers=2,
+    #             pooling=True,
+    #             pooling_window=3,
+    #             embedding=True,
+    #             embedding_dim=10,
+    #             ).to(DEVICE)
     latent_dim = 10
     max_len = 41
     aa_file = "new4_PKSs.fa"
@@ -102,4 +100,4 @@ if __name__ == "__main__":
     for i, seq in enumerate(seqs):
         seqs[i] = pad_string(seq, max_len, "-")
     print(seqs[0])
-    test_model(model, model_path, seqs, latent_dim, samples=10)
+    test_model(model_path, seqs, latent_dim, DEVICE, samples=10)

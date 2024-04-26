@@ -16,32 +16,32 @@ import argparse
 parser = argparse.ArgumentParser(description='Train the cVAE')
 
 # Declare arguments
-# parser.add_argument('--test', type=bool, required=False, default=False)
-parser.add_argument('--test', type=bool, required=False, default=True)
-parser.add_argument('--job_id', type=str, required=False, default='test_unaligned_addedRelU_randompad_test')
+parser.add_argument('--test', type=bool, required=False, default=False)
+# parser.add_argument('--test', type=bool, required=False, default=True)
+parser.add_argument('--job_id', type=str, required=False, default='test')
 parser.add_argument('--models_path', type=str, required=False, default='Models')
 parser.add_argument('--plots_path', type=str, required=False, default='Plots')
 parser.add_argument('--existing_parameters', required=False, default=None)
 parser.add_argument('--batch_size', type=int, default=10)
-parser.add_argument('--input_channels', type=int, default=22)
-parser.add_argument('--hidden_channels', type=int, default=32)
+parser.add_argument('--input_channels', type=int, default=23)
+parser.add_argument('--hidden_channels', type=int, default=512)
 parser.add_argument('--latent_dim', type=int, default=10)
-parser.add_argument('--kernel_size', type=int, default=11)
+parser.add_argument('--kernel_size', type=int, default=5)
 parser.add_argument('--stride', type=int, default=1)
 parser.add_argument('--padding', type=int, default=2)
-parser.add_argument('--layers', type=int, default=5)
+parser.add_argument('--layers', type=int, default=8)
 parser.add_argument('--pooling', type=bool, default=True)
 parser.add_argument('--pooling_window', type=int, default=3)
 parser.add_argument('--embedding', type=bool, default=True)
-parser.add_argument('--embedding_dim', type=int, default=20)
-parser.add_argument('--pool_conv_doublingtime', type=int, default=2)
+parser.add_argument('--embedding_dim', type=int, default=24)
+parser.add_argument('--pool_conv_doublingtime', type=int, default=3)
 
 parser.add_argument('--lr', type=float, default=0.0001)
 parser.add_argument('--scheduler_step', type=int, default=10)
 parser.add_argument('--gamma', type=float, default=1)
-parser.add_argument('--early_stopping_patience', type=int, default=10)
+parser.add_argument('--early_stopping_patience', type=int, default=5)
 parser.add_argument('--gap_weight', type=float, default=1)
-parser.add_argument('--num_epochs', type=int, default=80)
+parser.add_argument('--num_epochs', type=int, default=20)
 parser.add_argument('--n_seqs', type=int, default=10000)
 parser.add_argument('--random_seed', type=int, default=42)
 parser.add_argument('--aa_file', type=str, default="new4_PKSs.fa")
@@ -185,9 +185,11 @@ print("Longest sequence in dataset:", max_len)
 print("Shortest sequence in dataset:", min_len)
 
 if min_len != max_len:
-    print("Not all sequences are the same length. Sequences will be padded to the length of the longest sequence.")
+    print("Not all sequences are the same length. Sequences will be padded to the length of the longest sequence. Start '>' and end '<' padding will be used.")
+    max_len += 2
     for i, seq in enumerate(seqs):
-        seqs[i] = pad_string(seq, max_len, "-")
+        seq = '>' + seq + '<'
+        seqs[i] = pad_string(seq, max_len, "-") # + 2 for the start and end padding
     print(seqs[0])
 
 # Shuffle the list
@@ -256,8 +258,8 @@ def val_loop(device, val_dl, model, loss_fn):
 
             # Calculate conditions
             correct_preds = outputs_argmax == inputs_argmax
-            aa_condition = inputs_argmax != 21
-            gap_condition = inputs_argmax == 21
+            aa_condition = inputs_argmax != 22
+            gap_condition = inputs_argmax == 22
 
             # Calculate accuracies
             total_correct += correct_preds.float().sum().item()
@@ -290,6 +292,7 @@ model = cVAE(input_channels,
                pooling_window,
                embedding,
                embedding_dim,
+               pool_conv_doublingtime
                ).to(DEVICE)
 if START_FROM_EXISTING:
     model.load_state_dict(torch.load(f"{args.models_path}/{args.existing_parameters}.pth"))
@@ -338,7 +341,8 @@ for epoch in range(num_epochs):
     if val_avg_loss < best_val_loss:
         best_val_loss = val_avg_loss
         best_val_acc = val_avg_acc
-        torch.save(model.state_dict(), best_model_path)
+        # torch.save(model.state_dict(), best_model_path)
+        torch.save(model, best_model_path)
         epoch_since_improvement = 0
     else:
         epoch_since_improvement += 1
@@ -350,4 +354,4 @@ for epoch in range(num_epochs):
     print(f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {train_avg_loss:.4f} | Val Loss: {val_avg_loss:.4f} | Val Acc: {val_avg_acc:.4f} | Val aa Acc: {val_aa_acc:.4f} | Val gap Acc: {val_gap_acc:.4f}| LR: {learning_rate:g}")
 
 # Test the best model
-test_model(model, best_model_path, seqs, latent_dim, max_len, DEVICE)
+test_model(best_model_path, seqs, latent_dim, DEVICE, samples = 5)
