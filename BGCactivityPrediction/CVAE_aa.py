@@ -314,7 +314,7 @@ if START_FROM_EXISTING:
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-count_parameters(model)
+print("Model parameters: ", count_parameters(model))
 
 # Define the optimizer
 optimizer = optim.Adam(model.parameters(), lr=lr)
