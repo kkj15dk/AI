@@ -274,20 +274,20 @@ class Encoder(nn.Module):
         print("Encoder: ", self.encoder)
 
         # Going from convolutional layers to the latent layers
+        self.input_channels = self.input_channels * self.max_len
 
-        if inner_dim != None: # If we have an fc layer between the latent layer and the convolutional layers
+        if self.inner_dim != None: # If we have an fc layer between the latent layer and the convolutional layers
             self.fc_0 = nn.Sequential(
-                nn.Linear(self.input_channels * self.max_len, self.inner_dim),
+                nn.Linear(self.input_channels, self.inner_dim),
                 nn.ReLU()
             )
+            self.input_channels = self.inner_dim
             print("fc_0: ", self.fc_0)
             print("Latent inner dim: ", self.inner_dim)
-        else:
-            self.inner_dim = self.input_channels * self.max_len
 
-        self.fc_mu = nn.Linear(self.inner_dim, self.latent_dim)
+        self.fc_mu = nn.Linear(self.input_channels, self.latent_dim)
         self.fc_logvar = nn.Sequential(
-            nn.Linear(self.inner_dim, self.latent_dim),
+            nn.Linear(self.input_channels, self.latent_dim),
             nn.Softplus() # Don't know if this is needed or not
         )
 
@@ -296,7 +296,8 @@ class Encoder(nn.Module):
         
     def forward(self, x):
         x = self.encoder(x)
-        x = self.fc_0(x)
+        if self.inner_dim != None:
+            x = self.fc_0(x)
         mu = self.fc_mu(x)
         logvar = self.fc_logvar(x)
         return mu, logvar
@@ -349,14 +350,15 @@ class Decoder(nn.Module):
         print("Decoder: ", self.decoder)
 
     def forward(self, z):
-        z = self.fc_1(z)
+        if self.inner_dim != None:
+            z = self.fc_1(z)
         z = self.fc_z(z)
         z = z.view(-1, self.input_channels, self.max_len)
         x_hat = self.decoder(z)
         return x_hat
     
 class cVAE(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling, pooling_window, embedding, embedding_dim, pool_doublingtime, conv_doublingtime, pooling_method, upsampling_method, inner_dim = None):
+    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len, layers, pooling, pooling_window, embedding, embedding_dim, pool_doublingtime, conv_doublingtime, pooling_method, upsampling_method, inner_dim = 256):
         super(cVAE, self).__init__()
         # Encoder
         self.encoder = Encoder(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window, embedding, embedding_dim, pool_doublingtime, conv_doublingtime, pooling_method, inner_dim)

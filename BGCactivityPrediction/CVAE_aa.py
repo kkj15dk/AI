@@ -16,20 +16,20 @@ import argparse
 parser = argparse.ArgumentParser(description='Train the cVAE')
 
 # Declare arguments
-parser.add_argument('--test', type=bool, required=False, default=False)
-# parser.add_argument('--test', type=bool, required=False, default=True)
-parser.add_argument('--job_id', type=str, required=False, default='test')
+# parser.add_argument('--test', type=bool, required=False, default=False)
+parser.add_argument('--test', type=bool, required=False, default=True)
+parser.add_argument('--job_id', type=str, required=False, default='test_inner_dim')
 parser.add_argument('--models_path', type=str, required=False, default='Models')
 parser.add_argument('--plots_path', type=str, required=False, default='Plots')
 parser.add_argument('--existing_parameters', required=False, default=None)
 parser.add_argument('--batch_size', type=int, default=10)
 parser.add_argument('--input_channels', type=int, default=23)
-parser.add_argument('--hidden_channels', type=int, default=512)
-parser.add_argument('--latent_dim', type=int, default=100)
+parser.add_argument('--hidden_channels', type=int, default=256)
+parser.add_argument('--latent_dim', type=int, default=10)
 parser.add_argument('--kernel_size', type=int, default=5)
 parser.add_argument('--stride', type=int, default=1)
-parser.add_argument('--padding', type=int, default=0)
-parser.add_argument('--layers', type=int, default=5)
+parser.add_argument('--padding', type=int, default=2)
+parser.add_argument('--layers', type=int, default=3)
 parser.add_argument('--pooling', type=bool, default=True)
 parser.add_argument('--pooling_window', type=int, default=2)
 parser.add_argument('--pooling_method', type=str, choices=['max', 'avg'], default='avg')
@@ -39,13 +39,14 @@ parser.add_argument('--embedding_dim', type=int, default=20)
 parser.add_argument('--pool_doublingtime', type=int, default=1)
 parser.add_argument('--conv_doublingtime', type=int, default=1)
 parser.add_argument('--activation_function', type=str, choices=['relu', 'leakyrelu', 'tanh', 'sigmoid', 'gelu'], default='relu')
+parser.add_argument('--inner_dim', type=int, default=256)
 
 parser.add_argument('--lr', type=float, default=0.0001)
 parser.add_argument('--scheduler_step', type=int, default=10)
 parser.add_argument('--gamma', type=float, default=0.3)
 parser.add_argument('--early_stopping_patience', type=int, default=5)
 parser.add_argument('--gap_weight', type=float, default=1)
-parser.add_argument('--num_epochs', type=int, default=100)
+parser.add_argument('--num_epochs', type=int, default=10)
 parser.add_argument('--n_seqs', type=int, default=10000)
 parser.add_argument('--random_seed', type=int, default=42)
 parser.add_argument('--aa_file', type=str, default="new4_PKSs.fa")
@@ -81,6 +82,7 @@ conv_doublingtime = args.conv_doublingtime
 pooling_method = args.pooling_method
 upsampling_method = args.upsampling_method
 activation_function = args.activation_function # Not implemented yet
+inner_dim = args.inner_dim
 
 lr = args.lr
 scheduler_step = args.scheduler_step
@@ -180,8 +182,8 @@ seqs = list(set(train_seq_aa))
 
 # comment this out if you want to use random sequences
 if args.test:
-    # seqs = random_aa_seq(n_seqs)
-    seqs = random_aa_seq_unaligned(n_seqs)
+    seqs = random_aa_seq(n_seqs)
+    # seqs = random_aa_seq_unaligned(n_seqs)
     print(seqs[0])
     aa_OHE = one_hot_encode(seqs[0], True)
     print(hot_one_encode(aa_OHE, True))
@@ -303,7 +305,8 @@ model = cVAE(input_channels,
                 pool_doublingtime, 
                 conv_doublingtime,
                 pooling_method,
-                upsampling_method
+                upsampling_method,
+                inner_dim=inner_dim
                 ).to(DEVICE)
 if START_FROM_EXISTING:
     model.load_state_dict(torch.load(f"{args.models_path}/{args.existing_parameters}.pth"))
