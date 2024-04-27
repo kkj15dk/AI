@@ -311,6 +311,11 @@ model = cVAE(input_channels,
 if START_FROM_EXISTING:
     model.load_state_dict(torch.load(f"{args.models_path}/{args.existing_parameters}.pth"))
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+count_parameters(model)
+
 # Define the optimizer
 optimizer = optim.Adam(model.parameters(), lr=lr)
 
