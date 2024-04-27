@@ -239,6 +239,7 @@ class Encoder(nn.Module):
     def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, layers, pooling, max_len, pooling_window, embedding, embedding_dim, pool_doublingtime, conv_doublingtime, pooling_method, inner_dim):
         super(Encoder, self).__init__()
         self.embedding = embedding
+        self.inner_dim = inner_dim
         self.enc_ref = []
         self.max_len = max_len
         self.input_channels = input_channels
@@ -279,7 +280,7 @@ class Encoder(nn.Module):
                 nn.ReLU()
             )
             print("fc_0: ", self.fc_0)
-            print("Latent inner dim: ", inner_dim)
+            print("Latent inner dim: ", self.inner_dim)
         else:
             self.inner_dim = self.input_channels * self.max_len
 
@@ -307,6 +308,7 @@ class Decoder(nn.Module):
         self.input_channels = input_channels
         self.hidden_channels = hidden_channels
         self.latent_dim = latent_dim
+        self.inner_dim = inner_dim
         self.dec_ref = []
         if embedding:
             self.dec_ref.append(nn.Conv1d(embedding_dim, self.input_channels, kernel_size = 1, stride = 1, padding = 0))
@@ -329,7 +331,7 @@ class Decoder(nn.Module):
             *self.dec_ref
         )
 
-        if inner_dim != None: # If we have an fc layer between the latent layer and the convolutional layers
+        if self.inner_dim != None: # If we have an fc layer between the latent layer and the convolutional layers
             self.fc_1 = nn.Sequential(
                 nn.Linear(self.latent_dim, self.inner_dim),
                 nn.ReLU()
