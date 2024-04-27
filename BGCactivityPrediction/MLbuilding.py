@@ -240,6 +240,7 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.embedding = embedding
         self.inner_dim = inner_dim
+        self.latent_dim = latent_dim
         self.enc_ref = []
         self.max_len = max_len
         self.input_channels = input_channels
