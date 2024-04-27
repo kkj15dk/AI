@@ -142,83 +142,6 @@ class MaxPooling(nn.Module):
         x = self.maxpool(x)
         return x
 
-class Encoder_2(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, output_len):
-        super(Encoder_2, self).__init__()
-        self.output_len = output_len
-        self.encoder = nn.Sequential(
-            nn.Conv1d(input_channels, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
-            # nn.MaxPool1d(kernel_size=2, stride=2),
-            nn.Conv1d(hidden_channels, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
-            # nn.MaxPool1d(kernel_size=2, stride=2),
-            # nn.Conv1d(hidden_channels*2, hidden_channels*4, kernel_size=kernel_size, stride=stride, padding=padding),
-            # nn.ReLU(),
-            # nn.MaxPool1d(kernel_size=2, stride=2),
-            nn.Flatten(),
-            # nn.Linear(hidden_channels * 2 * self.output_len, hidden_channels * 2 * self.output_len),
-            # nn.ReLU()
-        )
-        
-        self.fc_mu = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
-        self.fc_logvar = nn.Linear(hidden_channels * 2 * self.output_len, latent_dim)
-        
-    def forward(self, x):
-        x = self.encoder(x)
-        mu = self.fc_mu(x)
-        logvar = self.fc_logvar(x)
-        return mu, logvar
-
-class Decoder_2(nn.Module):
-    def __init__(self, hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, output_len):
-        super(Decoder_2, self).__init__()
-        self.hidden_channels = hidden_channels
-        self.output_len = output_len
-        self.fc_z = nn.Linear(latent_dim, hidden_channels * 2 * self.output_len)
-        # self.fc_z = nn.Linear(latent_dim, hidden_channels * 4 * self.output_len)
-        self.decoder = nn.Sequential(
-            # nn.Upsample(scale_factor=2, mode='nearest'),
-            # nn.ConvTranspose1d(hidden_channels*4, hidden_channels*2, kernel_size=kernel_size, stride=stride, padding=padding),
-            # nn.ReLU(),
-            # nn.Upsample(scale_factor=2, mode='nearest'),
-            nn.ConvTranspose1d(hidden_channels*2, hidden_channels, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.ReLU(),
-            # nn.Upsample(scale_factor=2, mode='nearest'),
-            nn.ConvTranspose1d(hidden_channels, input_channels, kernel_size=kernel_size, stride=stride, padding=padding),
-            nn.Softmax(dim = 1)
-        )
-
-    def forward(self, z):
-        z = self.fc_z(z)
-        z = z.view(-1, self.hidden_channels * 2, self.output_len)
-        x_hat = self.decoder(z)
-        return x_hat
-
-class cVAE_2(nn.Module):
-    def __init__(self, input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, max_len):
-        super(cVAE_2, self).__init__()
-
-        # Define the output lengths between different layers of the model. hopefully this will make the model easier to manipulate later on
-        self.max_len = max_len
-        self.output_len = int(((self.max_len - kernel_size + 2*padding) / stride + 1) ) # Can give weird values if stride doesn't divide the length
-        print("Output length: ", self.output_len)
-        # Encoder
-        self.encoder = Encoder_2(input_channels, hidden_channels, latent_dim, kernel_size, stride, padding, self.output_len)
-        # Decoder
-        self.decoder = Decoder_2(hidden_channels, input_channels, latent_dim, kernel_size, stride, padding, self.output_len)
-
-    def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mu + eps*std
-    
-    def forward(self, x):
-        mu, logvar = self.encoder(x)
-        z = self.reparameterize(mu, logvar)
-        x_hat = self.decoder(z)
-        return x_hat, mu, logvar
-
 class Permute(nn.Module):
     def __init__(self, *dims):
         super(Permute, self).__init__()
@@ -276,14 +199,14 @@ class Encoder(nn.Module):
         # Going from convolutional layers to the latent layers
         self.input_channels = self.input_channels * self.max_len
 
-        if self.inner_dim != None: # If we have an fc layer between the latent layer and the convolutional layers
-            self.fc_0 = nn.Sequential(
-                nn.Linear(self.input_channels, self.inner_dim),
-                nn.ReLU()
-            )
-            self.input_channels = self.inner_dim
-            print("fc_0: ", self.fc_0)
-            print("Latent inner dim: ", self.inner_dim)
+        # if self.inner_dim != None: # If we have an fc layer between the latent layer and the convolutional layers
+        #     self.fc_0 = nn.Sequential(
+        #         nn.Linear(self.input_channels, self.inner_dim),
+        #         nn.ReLU()
+        #     )
+        #     self.input_channels = self.inner_dim
+        #     print("fc_0: ", self.fc_0)
+        #     print("Latent inner dim: ", self.inner_dim)
 
         self.fc_mu = nn.Linear(self.input_channels, self.latent_dim)
         self.fc_logvar = nn.Sequential(
@@ -296,8 +219,8 @@ class Encoder(nn.Module):
         
     def forward(self, x):
         x = self.encoder(x)
-        if self.inner_dim != None:
-            x = self.fc_0(x)
+        # if self.inner_dim != None:
+        #     x = self.fc_0(x)
         mu = self.fc_mu(x)
         logvar = self.fc_logvar(x)
         return mu, logvar
@@ -333,13 +256,13 @@ class Decoder(nn.Module):
             *self.dec_ref
         )
 
-        if self.inner_dim != None: # If we have an fc layer between the latent layer and the convolutional layers
-            self.fc_1 = nn.Sequential(
-                nn.Linear(self.latent_dim, self.inner_dim),
-                nn.ReLU()
-                )
-            self.latent_dim = self.inner_dim
-            print("fc1: ", self.fc_1)
+        # if self.inner_dim != None: # If we have an fc layer between the latent layer and the convolutional layers
+        #     self.fc_1 = nn.Sequential(
+        #         nn.Linear(self.latent_dim, self.inner_dim),
+        #         nn.ReLU()
+        #         )
+        #     self.latent_dim = self.inner_dim
+        #     print("fc1: ", self.fc_1)
         
         self.fc_z = nn.Sequential(
             nn.Linear(self.latent_dim, self.input_channels * self.max_len),
@@ -350,8 +273,8 @@ class Decoder(nn.Module):
         print("Decoder: ", self.decoder)
 
     def forward(self, z):
-        if self.inner_dim != None:
-            z = self.fc_1(z)
+        # if self.inner_dim != None:
+        #     z = self.fc_1(z)
         z = self.fc_z(z)
         z = z.view(-1, self.input_channels, self.max_len)
         x_hat = self.decoder(z)
