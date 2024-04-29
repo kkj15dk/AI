@@ -4,7 +4,7 @@
 #BSUB -q gpuv100
 #BSUB -R "select[gpu32gb]"
 ### -- set the job Name -- 
-#BSUB -J t_new
+#BSUB -J test
 ### -- ask for number of cores (default: 4) -- 
 #BSUB -n 4
 ### -- Select the resources: 1 gpu in exclusive process mode --
@@ -12,9 +12,9 @@
 ### -- specify that the cores must be on the same host -- 
 #BSUB -R "span[hosts=1]"
 ### -- specify amount of memory per core/slot -- 
-#BSUB -R "rusage[mem=1GB]"
+#BSUB -R "rusage[mem=5GB]"
 ### -- set walltime limit: hh:mm -- 
-#BSUB -W 24:00
+#BSUB -W 00:10
 ### -- send notification at start -- 
 #BSUB -B 
 ### -- send notification at completion -- 
@@ -24,10 +24,8 @@
 #BSUB -o Logs/%J.out 
 #BSUB -e Logs/%J.err 
 
-nvidia-smi
-
 module load python3/3.10.13
 source torch-venv/bin/activate
 
 # here follow the commands you want to execute
-python -u AI/BGCactivityPrediction/CVAE_aa.py --job_id=$LSB_JOBID --aa_file=clustalo_alignment.aln
+python -u AI/BGCactivityPrediction/MLtesting.py

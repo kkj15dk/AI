@@ -87,9 +87,9 @@ if __name__ == "__main__":
     #             embedding_dim=10,
     #             ).to(DEVICE)
     latent_dim = 10
-    max_len = 3594
-    aa_file = "new4_PKSs.fa"
-    model_path = "Models/test_parameters.pth"
+    max_len = 33301
+    aa_file = "clustalo_alignment.fa"
+    model_path = "Models/21644271_parameters.pth"
     train_record_aa = [record for record in SeqIO.parse(aa_file, "fasta")]
     train_seq_aa = [str(record.seq) for record in train_record_aa]
     # Get the unique sequences
