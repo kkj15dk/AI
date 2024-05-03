@@ -86,10 +86,11 @@ if __name__ == "__main__":
     #             embedding=True,
     #             embedding_dim=10,
     #             ).to(DEVICE)
-    latent_dim = 10
+    latent_dim = 256
+    
     max_len = 33301
     aa_file = "clustalo_alignment.aln"
-    model_path = "Models/21639574_parameters.pth"
+    model_path = "Models/21663041_parameters.pth"
     train_record_aa = [record for record in SeqIO.parse(aa_file, "fasta")]
     train_seq_aa = [str(record.seq) for record in train_record_aa]
     # Get the unique sequences

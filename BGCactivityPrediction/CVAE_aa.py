@@ -32,8 +32,8 @@ parser.add_argument('--padding', type=int, default=5)
 parser.add_argument('--layers', type=int, default=4)
 parser.add_argument('--pooling', type=bool, default=True)
 parser.add_argument('--pooling_window', type=int, default=3)
-parser.add_argument('--pooling_method', type=str, choices=['max', 'avg'], default='avg')
-parser.add_argument('--upsampling_method', type=str, choices=['nearest', 'linear'], default='linear')
+parser.add_argument('--pooling_method', type=str, choices=['max', 'avg'], default='max')
+parser.add_argument('--upsampling_method', type=str, choices=['nearest', 'linear'], default='nearest')
 parser.add_argument('--embedding', type=bool, default=True)
 parser.add_argument('--embedding_dim', type=int, default=20)
 parser.add_argument('--pool_doublingtime', type=int, default=1)
@@ -46,7 +46,7 @@ parser.add_argument('--scheduler_step', type=int, default=10)
 parser.add_argument('--gamma', type=float, default=0.5)
 parser.add_argument('--early_stopping_patience', type=int, default=5)
 parser.add_argument('--gap_weight', type=float, default=1)
-parser.add_argument('--num_epochs', type=int, default=100)
+parser.add_argument('--num_epochs', type=int, default=10)
 parser.add_argument('--n_seqs', type=int, default=10000)
 parser.add_argument('--random_seed', type=int, default=42)
 # parser.add_argument('--aa_file', type=str, default="new4_PKSs.fa")
@@ -268,8 +268,8 @@ def val_loop(device, val_dl, model, loss_fn):
 
             # Calculate conditions
             correct_preds = outputs_argmax == inputs_argmax
-            aa_condition = inputs_argmax != 21
-            gap_condition = inputs_argmax == 21
+            aa_condition = inputs_argmax != 20
+            gap_condition = inputs_argmax == 20
 
             # Calculate accuracies
             total_correct += correct_preds.float().sum().item()
